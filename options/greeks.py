@@ -1,12 +1,4 @@
-#!/usr/bin/env python3
-# -*- coding: utf-8 -*-
-"""
-Created on Sun May 10 15:35:33 2026
-
-@author: marcozini
-"""
-
-## Implement formulas of the most Greeks connected to Black-Scholes
+#### Implement Greeks connected to Black-Scholes option pricing ####
 
 # Delta
 # Vega
@@ -15,7 +7,7 @@ Created on Sun May 10 15:35:33 2026
 # Gamma
 
 
-# Preliminiaries
+# Preliminaries
 
 import numpy as np
 from scipy import stats
@@ -30,7 +22,7 @@ def d2(S, K, r, T, sigma, q = 0):
     return d2    
 
 
-#Validation function --> create later a seperate file liker helpers_quant or validate.py ....
+#TODO: Validation function --> create later a seperate file liker helpers_quant or move to a seperate validation module later
 
 def validate_bs_inputs(S, K, r, T, sigma, q, option_type):
     
@@ -117,7 +109,7 @@ def BS_theta(S, K, r, T, sigma, q = 0, option_type = "call"):
     return theta
 
 
-# Roh: dv/dr
+# Rho: dV/dr
 def BS_rho(S, K, r, T, sigma, q = 0, option_type = "call"):
     
     # Input validation
@@ -152,26 +144,7 @@ def BS_gamma(S, K, r, T, sigma, q = 0, option_type = "call"):
     
     return gamma
 
-    
 
-## TODO Checks --> Look better 
-
-S, K, r, T, sigma = 100, 100, 0.01, 1, 0.2
-
-# Delta ATM call ~ 0.5
-print(BS_delta(S, K, r, T, sigma, option_type="call"))
-
-# Delta call + |Delta put| should = 1
-print(BS_delta(S, K, r, T, sigma, option_type="call") + 
-      abs(BS_delta(S, K, r, T, sigma, option_type="put")))
-
-# Gamma identical for call and put
-print(BS_gamma(S, K, r, T, sigma, option_type="call"))
-print(BS_gamma(S, K, r, T, sigma, option_type="put"))
-
-# Vega identical for call and put
-print(BS_vega(S, K, r, T, sigma, option_type="call"))
-print(BS_vega(S, K, r, T, sigma, option_type="put"))
 
 
 

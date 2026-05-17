@@ -1,56 +1,9 @@
-#!/usr/bin/env python3
-# -*- coding: utf-8 -*-
-"""
-Created on Sat May  2 13:01:21 2026
-
-@author: marcozini
-"""
-
-#### Black-Scholes Pricing ####
+#### Black-Scholes Examples: put-call parity check & sensitivity plots ####
 
 import numpy as np
-from scipy import stats
 import matplotlib.pyplot as plt
 
-
-# C = Call option price
-# P = Put option price
-# S = Current underlying price
-# K = Strike price
-# r = Risk-free interest rate
-# T = Time to maturity
-# sigma = standard deviation of the underlying asset
-# N = Normal distribution
-# q = annual dividend yield (continuously compounded)
-
-def black_scholes_price(S, K, r, T, sigma, q = 0, option_type = "call"):
-    
-    # Input validation
-    if T <= 0:
-        raise ValueError("T must be positive")
-    if sigma <= 0:
-        raise ValueError("sigma must be positive")
-    if S <= 0 or K <= 0:
-        raise ValueError("S and K must be positive")
-    if q<0:
-        raise ValueError("Dividend yield can not be negative")
-        
-    #Calculation
-    d1 = (np.log(S/K) + (r - q + sigma**2 / 2)*T) / (sigma * np.sqrt(T))
-    
-    d2 = d1 - sigma * np.sqrt(T)
-    
-    if option_type == "call": 
-        C = S * np.exp(-q*T) * stats.norm.cdf(d1) - K * np.exp(-r*T) * stats.norm.cdf(d2)
-        return C
-    
-    elif option_type == "put":
-        P = K * np.exp(-r*T) * stats.norm.cdf(-d2) - S * np.exp(-q*T) * stats.norm.cdf(-d1)
-        return P
-    
-    else: 
-        raise ValueError("option_type must be 'call' or 'put'")
-   
+from quant_finance.options.black_scholes_pricing import black_scholes_price
 
 
 ## put-call parity check (C - P = S - K*exp(-rT))
@@ -61,19 +14,18 @@ r = 0.01
 T = 1
 sigma = 0.2
 
-call_price = black_scholes_price(S, K, r, T, sigma, q=0, option_type="call")
-put_price  = black_scholes_price(S, K, r, T, sigma, q=0, option_type="put")
+call_price = black_scholes_price(S, K, r, T, sigma, q = 0, option_type = "call")
+put_price  = black_scholes_price(S, K, r, T, sigma, q = 0, option_type = "put")
 
 diff = (call_price - put_price) - (S - K * np.exp(-r*T))
 
 print(call_price)
 print(put_price)
 print(diff)
-print(np.isclose(diff, 0))
+print(np.isclose(diff, 0, atol = 1e-6))
 
 
 ## Sensitivity analysis
-# TODO: Refactor repeated sensitivity plots into a generic plotting function.
 
 # 1) Price vs S
 S_range = np.linspace(50, 150, 100)
@@ -82,8 +34,8 @@ r = 0.01
 T = 1
 sigma = 0.2
 
-call_prices = [black_scholes_price(s, K, r, T, sigma, "call") for s in S_range]
-put_prices  = [black_scholes_price(s, K, r, T, sigma, "put")  for s in S_range]
+call_prices = [black_scholes_price(s, K, r, T, sigma, q = 0, option_type = "call") for s in S_range]
+put_prices  = [black_scholes_price(s, K, r, T, sigma, q = 0, option_type = "put")  for s in S_range]
 
 plt.figure(figsize=(9, 5))
 plt.plot(S_range, call_prices, label="Call", color="blue")
@@ -105,13 +57,13 @@ K = 100
 r = 0.01
 sigma = 0.2
 
-call_prices = [black_scholes_price(S, K, r, t, sigma, "call") for t in T_range]
-put_prices  = [black_scholes_price(S, K, r, t, sigma, "put")  for t in T_range]
+call_prices = [black_scholes_price(S, K, r, t, sigma, option_type = "call") for t in T_range]
+put_prices  = [black_scholes_price(S, K, r, t, sigma, option_type = "put")  for t in T_range]
 
 plt.figure(figsize=(9, 5))
 plt.plot(T_range, call_prices, label="Call", color="blue")
 plt.plot(T_range, put_prices,  label="Put",  color="red")
-plt.xlabel("Time-to_Maturity (T)")
+plt.xlabel("Time-to-Maturity (T)")
 plt.ylabel("Option Price")
 plt.title("Black-Scholes Price vs Time-to-Maturity")
 plt.legend()
@@ -127,8 +79,8 @@ K = 100
 r = 0.01
 T = 1
 
-call_prices = [black_scholes_price(S, K, r, T, s, "call") for s in sigma_range]
-put_prices  = [black_scholes_price(S, K, r, T, s, "put")  for s in sigma_range]
+call_prices = [black_scholes_price(S, K, r, T, s, option_type = "call") for s in sigma_range]
+put_prices  = [black_scholes_price(S, K, r, T, s, option_type = "put")  for s in sigma_range]
 
 plt.figure(figsize=(9, 5))
 plt.plot(sigma_range, call_prices, label="Call", color="blue")
@@ -149,8 +101,8 @@ K = 100
 T = 1
 sigma = 0.2
 
-call_prices = [black_scholes_price(S, K, r, T, sigma, "call") for r in r_range]
-put_prices  = [black_scholes_price(S, K, r, T, sigma, "put")  for r in r_range]
+call_prices = [black_scholes_price(S, K, r, T, sigma, option_type = "call") for r in r_range]
+put_prices  = [black_scholes_price(S, K, r, T, sigma, option_type = "put")  for r in r_range]
 
 plt.figure(figsize=(9, 5))
 plt.plot(r_range, call_prices, label="Call", color="blue")
@@ -172,8 +124,8 @@ r = 0.01
 T = 1
 sigma = 0.2
 
-call_prices = [black_scholes_price(S, k, r, T, sigma, "call") for k in K_range]
-put_prices  = [black_scholes_price(S, k, r, T, sigma, "put")  for k in K_range]
+call_prices = [black_scholes_price(S, k, r, T, sigma, option_type = "call") for k in K_range]
+put_prices  = [black_scholes_price(S, k, r, T, sigma, option_type = "put")  for k in K_range]
 
 plt.figure(figsize=(9, 5))
 plt.plot(K_range, call_prices, label="Call", color="blue")
