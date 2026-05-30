@@ -80,6 +80,7 @@ def BS_vega(S, K, r, T, sigma, q = 0, option_type = "call"):
     return vega
 
     
+
 # Theta: dV/dtau
 def BS_theta(S, K, r, T, sigma, q = 0, option_type = "call"):
     

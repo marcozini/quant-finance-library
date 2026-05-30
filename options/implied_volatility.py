@@ -3,6 +3,7 @@
 
 import numpy as np
 from quant_finance.options.black_scholes_pricing import black_scholes_price
+from quant_finance.options.greeks import BS_vega
 
 
 ## Notation
@@ -33,7 +34,7 @@ def implied_volatility_bisection(
     max_iter = 1000,
 ):
     
-    # Input aalidation    
+    # Input validation    
     if C <= 0:
         raise ValueError("C must be positive")
 
@@ -42,6 +43,13 @@ def implied_volatility_bisection(
 
     if low_sigma >= high_sigma:
         raise ValueError("low_sigma must be smaller than high_sigma")
+        
+    if tol <= 0: 
+        raise ValueError("Tolerance must be positive")
+        
+    if max_iter <= 0:
+        raise ValueError("Maximum iteration must be positive")
+
     
     # Difference between model and market price; root problem function
     f_low = black_scholes_price(S, K, r, T, sigma = low_sigma, q = q, option_type = option_type) - C
@@ -75,7 +83,60 @@ def implied_volatility_bisection(
 
 
     
+## Implied volatility solver with Newton-Raphson Method
+# Recall: The derivative of BS with respect to volatility is Vega
+
+def implied_volatility_newton(
+    C,
+    S,
+    K,
+    r,
+    T,
+    q = 0.0,
+    option_type = "call",
+    initial_guess = 0.15, #initial volatility guess
+    tol = 1e-6,
+    max_iter = 1000,
+):
+    
+    #Input validation
+    if C <= 0:
+        raise ValueError("C must be positive")
+        
+    if initial_guess <= 0:
+        raise ValueError("Initial volatility guess must be positive")
+        
+    if tol <= 0: 
+        raise ValueError("Tolerance must be positive")
+        
+    if max_iter <= 0:
+        raise ValueError("Maximum iteration must be positive")
 
     
-#TODO: implement Newton's method as well & add them into one function
+    #Initial sigma starts the iteration process
+    sigma_i = initial_guess 
+    
+    #Iteration
+    for i in range(max_iter):
+        
+        #Calculate BS price (f(σ_n)), pricing error & Vega (f'(σ_n))
+        BS_price = black_scholes_price(S, K, r, T, sigma = sigma_i, q = q, option_type = option_type)
+        
+        pricing_error = BS_price - C
+        
+        #if pricing error below tolerance, stop the iteration
+        if abs(pricing_error) < tol:
+            return sigma_i
+        
+        vega = BS_vega(S, K, r, T, sigma = sigma_i, q = q, option_type = option_type)
+        
+        #Check that vega is not too small for the division
+        if abs(vega) < 1e-10:
+            raise ValueError("Vega is too small for Newton iteration")
+    
+        sigma_i = sigma_i - pricing_error / vega 
+    
+    return sigma_i
 
+
+#TODO combine both methods in one implied_volatility function
