@@ -139,4 +139,54 @@ def implied_volatility_newton(
     return sigma_i
 
 
-#TODO combine both methods in one implied_volatility function
+# combine both solvers into one volatility solver function
+def implied_volatility( 
+        C,
+        S,
+        K,
+        r,
+        T,
+        q = 0.0,
+        option_type = "call",
+        initial_guess = 0.15, # initial volatility guess for Newton
+        low_sigma = 1e-6,
+        high_sigma = 3.0,
+        tol = 1e-6,
+        max_iter = 1000,
+        method = "newton"
+):
+    
+    if method not in ("newton", "bisection"):
+        raise ValueError("method must be either newton or bisection")
+    
+    if method == "newton":
+        return implied_volatility_newton(
+            C = C,
+            S = S,
+            K = K,
+            r = r,
+            T = T,
+            q = q,
+            option_type = option_type,
+            initial_guess = initial_guess,
+            tol = tol,
+            max_iter = max_iter,
+        )
+        
+    if method == "bisection":
+        return implied_volatility_bisection(
+            C = C,
+            S = S,
+            K = K,
+            r = r,
+            T = T,
+            q = q,
+            option_type = option_type,
+            low_sigma = low_sigma,
+            high_sigma = high_sigma,
+            tol = tol,
+            max_iter = max_iter,
+        )
+    
+    
+    

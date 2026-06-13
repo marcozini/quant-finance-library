@@ -3,8 +3,7 @@
 
 #import functions
 from quant_finance.options.black_scholes_pricing import black_scholes_price
-from quant_finance.options.implied_volatility import implied_volatility_bisection
-from quant_finance.options.implied_volatility import implied_volatility_newton
+from quant_finance.options.implied_volatility import implied_volatility
 
 
 # Parameters
@@ -26,7 +25,7 @@ market_price = black_scholes_price(
 )
 
 # Calculate implied volatility with bisection
-iv = implied_volatility_bisection(
+iv_bisection = implied_volatility(
     C = market_price,
     S = S,
     K = K,
@@ -34,16 +33,17 @@ iv = implied_volatility_bisection(
     T = T,
     q = q,
     option_type = option_type,
+    method = "bisection"
 )
 
 print("Market price:", market_price)
 print("True sigma:", sigma_true)
-print("Implied volatility:", iv)
-print("Difference:", iv - sigma_true)
+print("Implied volatility:", iv_bisection)
+print("Difference:", iv_bisection - sigma_true)
 
 
 # Calculate implied volatility with Newton-Raphson
-iv = implied_volatility_newton(
+iv_newton = implied_volatility(
     C = market_price,
     S = S,
     K = K,
@@ -51,10 +51,11 @@ iv = implied_volatility_newton(
     T = T,
     q = q,
     option_type = option_type,
+    method = "newton"
 )
 
 print("Market price:", market_price)
 print("True sigma:", sigma_true)
-print("Implied volatility:", iv)
-print("Difference:", iv - sigma_true)
+print("Implied volatility:", iv_newton)
+print("Difference:", iv_newton - sigma_true)
 
