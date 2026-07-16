@@ -9,3 +9,7 @@ venv/
 __pycache__/
 *.pyc
 .pytest_cache/
+.virtual_documents/
+anaconda_projects/
+*.egg-info/
+
