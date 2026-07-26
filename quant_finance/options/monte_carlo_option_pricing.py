@@ -6,9 +6,11 @@ from statistics import NormalDist
 
 # Simulate terminal underlying prices under risk-neutral geometric Brownian motion.
 
-def simulate_terminal_prices(S_0, r, sigma, T, q=0, nsim=100000):
+def simulate_terminal_prices(S_0, r, sigma, T, q=0, nsim=100000, seed=None):
     
-    Z = np.random.normal(loc=0, scale=1, size=nsim)
+    rng = np.random.default_rng(seed)
+    Z = rng.normal(loc=0, scale=1, size=nsim)
+
     S_T = S_0 * np.exp((r - q - 0.5 * sigma**2) * T + sigma * np.sqrt(T) * Z)
     
     return S_T
@@ -25,10 +27,11 @@ def monte_carlo_option_price(
     nsim=100000,
     option_type="call",
     alpha=0.05,
-    return_stats=False,
+    seed=None,
+    return_stats=False
 ):
     
-    S_T = simulate_terminal_prices(S_0, r, sigma, T, q=q, nsim=nsim)
+    S_T = simulate_terminal_prices(S_0, r, sigma, T, q=q, nsim=nsim, seed=seed)
     
     # Average discounted payoff
     if option_type == "call":

@@ -17,6 +17,7 @@ option_type = "call"
 
 # Monte Carlo parameters
 nsim = 100_000
+seed=0
 
 
 ## Call option pricing and Black-Scholes validation
@@ -31,6 +32,7 @@ mc_price, standard_error, confidence_interval = monte_carlo_option_price(
     nsim=nsim,
     option_type=option_type,
     alpha=0.05,
+    seed=seed,
     return_stats=True,
 )
 
@@ -75,6 +77,7 @@ for run in range(1, 6):
         T=T,
         q=q,
         nsim=nsim,
+        seed=seed,
         option_type=option_type,
     )
 
