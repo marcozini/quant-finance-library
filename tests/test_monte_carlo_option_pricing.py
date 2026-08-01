@@ -1,7 +1,6 @@
 #### Unit tests for Monte Carlo option pricing ####
 
 import pytest
-import numpy as np
 
 from quant_finance.options.monte_carlo_option_pricing import monte_carlo_option_price
 from quant_finance.options.black_scholes_pricing import black_scholes_price
@@ -20,7 +19,6 @@ def test_monte_carlo_call_option_known_value():
         q=0.0,
         option_type='call')
     
-    np.random.seed(0)
     mc_price = monte_carlo_option_price(
         K=100,
         S_0=100,
@@ -32,6 +30,7 @@ def test_monte_carlo_call_option_known_value():
         option_type='call',
         alpha=0.05,
         return_stats=False,
+        seed=0
         )
     
     assert mc_price == pytest.approx(bs_price, rel = 1e-2)
@@ -49,7 +48,6 @@ def test_monte_carlo_put_option_known_value():
         q=0.0,
         option_type="put")
     
-    np.random.seed(0)
     mc_price = monte_carlo_option_price(
         K=100,
         S_0=100,
@@ -61,6 +59,7 @@ def test_monte_carlo_put_option_known_value():
         option_type='put',
         alpha=0.05,
         return_stats=False,
+        seed=0
         )
     
     assert mc_price == pytest.approx(bs_price, rel = 1e-2)
@@ -68,8 +67,6 @@ def test_monte_carlo_put_option_known_value():
     
 # Statistis (i.e standard error and confidence intervals)
 def test_monte_carlo_return_stats():
-
-    np.random.seed(0)
 
     mc_price, standard_error, confidence_interval = monte_carlo_option_price(
         K=100,
@@ -82,6 +79,7 @@ def test_monte_carlo_return_stats():
         option_type="call",
         alpha=0.05,
         return_stats=True,
+        seed=0,
     )
 
     ci_lower, ci_upper = confidence_interval
