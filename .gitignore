@@ -13,3 +13,4 @@ __pycache__/
 anaconda_projects/
 *.egg-info/
 
+data/
