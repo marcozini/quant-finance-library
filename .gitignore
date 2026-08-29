@@ -14,3 +14,4 @@ anaconda_projects/
 *.egg-info/
 
 data/
+outputs/
