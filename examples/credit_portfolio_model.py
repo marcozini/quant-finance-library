@@ -317,6 +317,22 @@ for index, row in portfolio.iterrows():
         ] = pd_source
 
 
+# Calculate expected loss for each counterparty.
+
+portfolio["expected_loss"] = (
+    portfolio["exposure"]
+    * portfolio["pd"]
+    * portfolio["lgd"]
+)
+
+
+# Calculate total portfolio expected loss.
+
+portfolio_expected_loss = (
+    portfolio["expected_loss"].sum()
+)
+
+
 # Display current portfolio results.
 
 print(
@@ -329,8 +345,11 @@ print(
             "counterparty",
             "ticker",
             "pd_method",
+            "exposure",
+            "lgd",
             "pd",
             "pd_source",
+            "expected_loss",
             "equity_value",
             "equity_volatility",
             "debt",
@@ -362,4 +381,12 @@ print(
     ].to_string(
         index=False
     )
+)
+
+
+# Display portfolio expected loss.
+
+print(
+    f"\nPortfolio expected loss: "
+    f"{portfolio_expected_loss:,.2f}"
 )
