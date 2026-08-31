@@ -10,14 +10,15 @@ from quant_finance.credit.portfolio_input import (
     load_model_settings,
     load_factor_proxies,
     load_rating_migration_matrix,
+    load_market_data,
     validate_portfolio,
     validate_model_settings,
     validate_factor_proxies,
     validate_rating_migration_matrix,
+    validate_market_data,
 )
 
 from quant_finance.credit.counterparty_rating import get_counterparty_pd
-
 from quant_finance.credit.merton import merton_probability_of_default
 from quant_finance.credit.merton_calibration import calibrate_merton
 from quant_finance.credit.merton_market_data import (
@@ -25,15 +26,8 @@ from quant_finance.credit.merton_market_data import (
     estimate_equity_volatility,
     estimate_debt_default_point,
 )
-
-from quant_finance.credit.factor_market_data import (
-    estimate_counterparty_factor_loadings,
-)
-
-from quant_finance.credit.portfolio_simulation import (
-    simulate_migration_portfolio_losses,
-)
-
+from quant_finance.credit.factor_market_data import estimate_counterparty_factor_loadings
+from quant_finance.credit.portfolio_simulation import simulate_migration_portfolio_losses
 from quant_finance.credit.credit_risk_analytics import (
     expected_loss,
     value_at_risk,
@@ -45,6 +39,7 @@ from quant_finance.credit.credit_risk_analytics import (
 )
 
 from quant_finance.market_data.rates import get_risk_free_rate
+from quant_finance.market_data.fx import get_fx_rate
 
 
 # Merton PD horizon.
@@ -55,19 +50,77 @@ def _has_text(value):
     return pd.notna(value) and str(value).strip() != ""
 
 
-# Complete missing risk-free rates using the currency-specific market-data module.
-def _complete_risk_free_rates(portfolio):
+# Retrieve risk-free rates automatically.
+# Use the frozen Excel snapshot only if automatic retrieval fails.
+
+def _complete_risk_free_rates(portfolio, market_data):
+
+    portfolio["risk_free_rate_source"] = None
+    rate_cache = {}
 
     for index, row in portfolio.iterrows():
 
-        if pd.isna(row["risk_free_rate"]):
-            currency = str(row["currency"]).upper()
-            portfolio.at[index, "risk_free_rate"] = get_risk_free_rate(currency)
+        currency = str(row["currency"]).upper().strip()
+
+        if currency not in rate_cache:
+            rate_cache[currency] = get_risk_free_rate(
+                currency=currency,
+                market_data=market_data,
+                return_source=True,
+            )
+
+        rate, source = rate_cache[currency]
+
+        # Automatic/fallback market data intentionally replaces
+        # any old manually entered rate in the portfolio sheet.
+        portfolio.at[index, "risk_free_rate"] = rate
+        portfolio.at[index, "risk_free_rate_source"] = source
+
+    return portfolio
+
+
+# Convert portfolio exposures into the model base currency.
+
+def _convert_exposures_to_base_currency(portfolio, base_currency, market_data):
+
+    base_currency = str(base_currency).upper().strip()
+
+    portfolio["exposure_local"] = portfolio["exposure"].astype(float)
+    portfolio["fx_rate_to_base"] = np.nan
+    portfolio["fx_rate_source"] = None
+    portfolio["exposure_base"] = np.nan
+
+    fx_cache = {}
+
+    for index, row in portfolio.iterrows():
+
+        currency = str(row["currency"]).upper().strip()
+
+        if currency not in fx_cache:
+            fx_cache[currency] = get_fx_rate(
+                currency=currency,
+                base_currency=base_currency,
+                market_data=market_data,
+                return_source=True,
+            )
+
+        fx_rate, source = fx_cache[currency]
+
+        exposure_base = float(row["exposure"]) * fx_rate
+
+        portfolio.at[index, "fx_rate_to_base"] = fx_rate
+        portfolio.at[index, "fx_rate_source"] = source
+        portfolio.at[index, "exposure_base"] = exposure_base
+
+    # Existing downstream credit functions use the "exposure" column.
+    # From this point onward it therefore represents base-currency exposure.
+    portfolio["exposure"] = portfolio["exposure_base"]
 
     return portfolio
 
 
 # Calculate rating-based or Merton-based PD for each counterparty.
+
 def _calculate_counterparty_pds(portfolio, start_date, end_date):
 
     portfolio["pd"] = np.nan
@@ -95,7 +148,6 @@ def _calculate_counterparty_pds(portfolio, start_date, end_date):
             )
 
         ticker = str(row["ticker"]).strip() if _has_text(row["ticker"]) else None
-
         equity_value = row["equity_value"]
         equity_volatility = row["equity_volatility"]
         debt = row["debt"]
@@ -110,11 +162,11 @@ def _calculate_counterparty_pds(portfolio, start_date, end_date):
             and manual_debt
         )
 
-        # Fully manual Merton inputs.
+        # Fully manual company inputs.
         if manual_complete:
             pd_source = "merton_manual"
 
-        # Otherwise obtain missing Merton inputs from market data.
+        # Otherwise obtain missing company inputs from market data.
         elif ticker is not None:
 
             if not manual_equity_value:
@@ -148,6 +200,8 @@ def _calculate_counterparty_pds(portfolio, start_date, end_date):
                 f"complete manual Merton inputs or a ticker."
             )
 
+        # Equity value and debt remain in the company's original
+        # currency. Only portfolio exposure is FX-converted.
         risk_free_rate = float(portfolio.at[index, "risk_free_rate"])
 
         asset_value, asset_volatility = calibrate_merton(
@@ -178,6 +232,7 @@ def _calculate_counterparty_pds(portfolio, start_date, end_date):
 
 
 # Calculate expected loss for each counterparty.
+
 def _calculate_expected_losses(portfolio):
 
     portfolio["expected_loss"] = [
@@ -193,6 +248,7 @@ def _calculate_expected_losses(portfolio):
 
 
 # Convert factor-model output into the four expected loadings.
+
 def _unpack_factor_loadings(loadings):
 
     if isinstance(loadings, dict):
@@ -212,6 +268,7 @@ def _unpack_factor_loadings(loadings):
 
 
 # Estimate systematic factor loadings for every counterparty.
+
 def _estimate_portfolio_factor_loadings(
     portfolio,
     factor_proxies,
@@ -233,9 +290,7 @@ def _estimate_portfolio_factor_loadings(
             factor_source = "own_ticker"
 
         elif _has_text(row["factor_loading_proxy_ticker"]):
-            calibration_ticker = str(
-                row["factor_loading_proxy_ticker"]
-            ).strip()
+            calibration_ticker = str(row["factor_loading_proxy_ticker"]).strip()
             factor_source = "proxy_ticker"
 
         else:
@@ -270,7 +325,9 @@ def _estimate_portfolio_factor_loadings(
     return portfolio
 
 
-# Calculate leave-one-out counterparty risk contributions using the same scenarios.
+# Calculate leave-one-out counterparty risk contributions
+# using the same Monte Carlo scenarios.
+
 def _calculate_risk_contributions(
     portfolio,
     portfolio_losses,
@@ -368,6 +425,7 @@ def _calculate_risk_contributions(
 
 
 # Run the complete credit portfolio model.
+
 def run_credit_portfolio_model(file_path):
 
     # Load Excel steering inputs.
@@ -375,12 +433,20 @@ def run_credit_portfolio_model(file_path):
     settings = load_model_settings(file_path)
     factor_proxies = load_factor_proxies(file_path)
     rating_migration_matrix = load_rating_migration_matrix(file_path)
+    market_data = load_market_data(file_path)
 
     # Validate raw model inputs.
     validate_portfolio(portfolio)
     validate_model_settings(settings)
     validate_factor_proxies(factor_proxies)
     validate_rating_migration_matrix(rating_migration_matrix)
+
+    base_currency = str(settings["base_currency"]).upper().strip()
+
+    validate_market_data(
+        market_data,
+        base_currency=base_currency,
+    )
 
     # Dates used for market-data estimation.
     end_date = date.today()
@@ -393,9 +459,23 @@ def run_credit_portfolio_model(file_path):
     # Use a one-year history for Merton equity volatility estimation.
     merton_start_date = end_date - timedelta(days=365)
 
-    # Complete rates and calculate counterparty PDs.
-    portfolio = _complete_risk_free_rates(portfolio)
+    # Risk-free rates:
+    # automatic market data first, frozen snapshot only as fallback.
+    portfolio = _complete_risk_free_rates(
+        portfolio,
+        market_data=market_data,
+    )
 
+    # FX:
+    # automatic ECB data first, frozen snapshot only as fallback.
+    # All credit exposures are converted into the portfolio base currency.
+    portfolio = _convert_exposures_to_base_currency(
+        portfolio,
+        base_currency=base_currency,
+        market_data=market_data,
+    )
+
+    # Calculate counterparty PDs and expected losses.
     portfolio = _calculate_counterparty_pds(
         portfolio,
         start_date=merton_start_date,
@@ -427,7 +507,7 @@ def run_credit_portfolio_model(file_path):
 
     confidence_level = float(settings["confidence_level"])
 
-    # Portfolio risk metrics.
+    # Portfolio risk metrics are now expressed in base currency.
     default_expected_loss = float(portfolio["expected_loss"].sum())
     migration_mean_loss = float(np.mean(portfolio_losses))
     portfolio_var = value_at_risk(portfolio_losses, confidence_level)
@@ -445,6 +525,7 @@ def run_credit_portfolio_model(file_path):
     )
 
     summary = {
+        "base_currency": base_currency,
         "default_expected_loss": default_expected_loss,
         "migration_mean_loss": migration_mean_loss,
         "confidence_level": confidence_level,
@@ -460,6 +541,7 @@ def run_credit_portfolio_model(file_path):
         "settings": settings,
         "factor_proxies": factor_proxies,
         "rating_migration_matrix": rating_migration_matrix,
+        "market_data": market_data,
         "portfolio_losses": portfolio_losses,
         "migration_states": migration_states,
         "counterparty_losses": counterparty_losses,

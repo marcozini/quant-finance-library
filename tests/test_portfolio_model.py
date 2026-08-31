@@ -20,13 +20,16 @@ def test_run_credit_portfolio_model(monkeypatch):
     settings = {
         "confidence_level": 0.75,
         "factor_lookback_years": 3,
+        "base_currency": "USD",
     }
 
     factor_proxies = pd.DataFrame()
     rating_migration_matrix = pd.DataFrame()
+    market_data = pd.DataFrame()
 
     portfolio_losses = np.array([0.0, 0.0, 5.0, 10.0])
     counterparty_losses = portfolio_losses.reshape(-1, 1)
+
     migration_states = np.array(
         [["A"], ["A"], ["BBB"], ["D"]],
         dtype=object,
@@ -57,6 +60,12 @@ def test_run_credit_portfolio_model(monkeypatch):
         lambda _: rating_migration_matrix,
     )
 
+    monkeypatch.setattr(
+        portfolio_model,
+        "load_market_data",
+        lambda _: market_data,
+    )
+
     # Validation functions are tested separately.
     monkeypatch.setattr(
         portfolio_model,
@@ -82,11 +91,23 @@ def test_run_credit_portfolio_model(monkeypatch):
         lambda _: None,
     )
 
-    # Mock components that already have dedicated tests.
+    monkeypatch.setattr(
+        portfolio_model,
+        "validate_market_data",
+        lambda market_data, base_currency: None,
+    )
+
+    # Components below already have dedicated tests.
     monkeypatch.setattr(
         portfolio_model,
         "_complete_risk_free_rates",
-        lambda portfolio: portfolio,
+        lambda portfolio, market_data: portfolio,
+    )
+
+    monkeypatch.setattr(
+        portfolio_model,
+        "_convert_exposures_to_base_currency",
+        lambda portfolio, base_currency, market_data: portfolio,
     )
 
     monkeypatch.setattr(
@@ -123,10 +144,15 @@ def test_run_credit_portfolio_model(monkeypatch):
 
     # Check main output structure.
     assert "portfolio" in results
+    assert "settings" in results
+    assert "market_data" in results
     assert "summary" in results
     assert "portfolio_losses" in results
     assert "migration_states" in results
     assert "counterparty_losses" in results
+
+    # Check selected model base currency.
+    assert results["summary"]["base_currency"] == "USD"
 
     # Check portfolio risk metrics.
     assert "default_expected_loss" in results["summary"]

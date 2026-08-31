@@ -6,19 +6,6 @@ import pandas as pd
 # Load credit portfolio data from the Excel steering file.
 
 def load_portfolio(file_path):
-    """
-    Load the credit portfolio from an Excel file.
-
-    Parameters
-    ----------
-    file_path : str
-        Path to the Excel input file.
-
-    Returns
-    -------
-    pandas.DataFrame
-        DataFrame containing the credit portfolio inputs.
-    """
 
     portfolio = pd.read_excel(
         file_path,
@@ -31,19 +18,6 @@ def load_portfolio(file_path):
 # Load model settings from the Excel steering file.
 
 def load_model_settings(file_path):
-    """
-    Load model settings from the Excel steering file.
-
-    Parameters
-    ----------
-    file_path : str
-        Path to the Excel input file.
-
-    Returns
-    -------
-    dict
-        Dictionary containing the model settings.
-    """
 
     settings_data = pd.read_excel(
         file_path,
@@ -72,19 +46,6 @@ def load_model_settings(file_path):
 # Load factor proxy mappings from the Excel steering file.
 
 def load_factor_proxies(file_path):
-    """
-    Load factor proxy mappings from the Excel steering file.
-
-    Parameters
-    ----------
-    file_path : str
-        Path to the Excel input file.
-
-    Returns
-    -------
-    pandas.DataFrame
-        DataFrame containing factor proxy mappings.
-    """
 
     factor_proxies = pd.read_excel(
         file_path,
@@ -97,21 +58,6 @@ def load_factor_proxies(file_path):
 # Load rating migration matrix and credit spread inputs.
 
 def load_rating_migration_matrix(file_path):
-    """
-    Load rating transition probabilities and credit spreads
-    from the Excel steering file.
-
-    Parameters
-    ----------
-    file_path : str
-        Path to the Excel input file.
-
-    Returns
-    -------
-    pandas.DataFrame
-        DataFrame containing rating migration probabilities
-        and credit spread inputs.
-    """
 
     rating_migration_matrix = pd.read_excel(
         file_path,
@@ -119,6 +65,18 @@ def load_rating_migration_matrix(file_path):
     )
 
     return rating_migration_matrix
+
+
+# Load fallback market-data snapshot.
+
+def load_market_data(file_path):
+
+    market_data = pd.read_excel(
+        file_path,
+        sheet_name="market_data",
+    )
+
+    return market_data
 
 
 # Validate the basic structure and values of the credit portfolio.
@@ -145,7 +103,6 @@ def validate_portfolio(portfolio):
         "region",
     ]
 
-    # Check that all required columns exist.
     missing_columns = [
         column
         for column in required_columns
@@ -170,6 +127,23 @@ def validate_portfolio(portfolio):
     ).any():
         raise ValueError(
             "LGD must be between 0 and 1."
+        )
+
+    # Currency must be provided.
+    if portfolio["currency"].isna().any():
+        raise ValueError(
+            "Currency must be provided for every counterparty."
+        )
+
+    if (
+        portfolio["currency"]
+        .astype(str)
+        .str.strip()
+        .eq("")
+        .any()
+    ):
+        raise ValueError(
+            "Currency must not be empty."
         )
 
     # PD method must be either rating or Merton.
@@ -200,7 +174,11 @@ def validate_portfolio(portfolio):
         )
 
     # Merton counterparties need either a ticker
-    # or complete manual Merton inputs.
+    # or complete manual company inputs.
+    #
+    # The risk-free rate is not a required manual input.
+    # It is retrieved automatically and replaced by the
+    # fallback market-data snapshot only if retrieval fails.
     merton_rows = (
         portfolio["pd_method"]
         == "merton"
@@ -210,7 +188,6 @@ def validate_portfolio(portfolio):
         "equity_value",
         "equity_volatility",
         "debt",
-        "risk_free_rate",
     ]
 
     for _, row in portfolio.loc[
@@ -219,9 +196,7 @@ def validate_portfolio(portfolio):
 
         has_ticker = (
             pd.notna(row["ticker"])
-            and str(
-                row["ticker"]
-            ).strip() != ""
+            and str(row["ticker"]).strip() != ""
         )
 
         has_manual_inputs = (
@@ -248,9 +223,7 @@ def validate_portfolio(portfolio):
 
         has_ticker = (
             pd.notna(row["ticker"])
-            and str(
-                row["ticker"]
-            ).strip() != ""
+            and str(row["ticker"]).strip() != ""
         )
 
         has_factor_loading_proxy = (
@@ -291,9 +264,9 @@ def validate_model_settings(settings):
         "t_degrees_of_freedom",
         "factor_structure",
         "factor_lookback_years",
+        "base_currency",
     ]
 
-    # Check that all required settings exist.
     missing_settings = [
         setting
         for setting in required_settings
@@ -324,9 +297,7 @@ def validate_model_settings(settings):
     seed = settings["seed"]
 
     if (
-        not float(
-            seed
-        ).is_integer()
+        not float(seed).is_integer()
         or seed < 0
     ):
         raise ValueError(
@@ -402,6 +373,19 @@ def validate_model_settings(settings):
             "factor_lookback_years must be greater than zero."
         )
 
+    # Portfolio base currency.
+    base_currency = str(
+        settings["base_currency"]
+    ).strip().upper()
+
+    if (
+        not base_currency
+        or len(base_currency) != 3
+    ):
+        raise ValueError(
+            "base_currency must be a three-letter currency code."
+        )
+
     return True
 
 
@@ -416,7 +400,6 @@ def validate_factor_proxies(factor_proxies):
         "description",
     ]
 
-    # Check required columns.
     missing_columns = [
         column
         for column in required_columns
@@ -428,7 +411,6 @@ def validate_factor_proxies(factor_proxies):
             f"Missing factor proxy columns: {missing_columns}"
         )
 
-    # Validate factor types.
     valid_factor_types = {
         "global",
         "region",
@@ -442,7 +424,6 @@ def validate_factor_proxies(factor_proxies):
             "factor_type must be 'global', 'region', or 'sector'."
         )
 
-    # Factor names and tickers must be provided.
     if factor_proxies[
         "factor_name"
     ].isna().any():
@@ -457,7 +438,6 @@ def validate_factor_proxies(factor_proxies):
             "ticker must not be missing."
         )
 
-    # Each factor type/name combination must be unique.
     if factor_proxies.duplicated(
         subset=[
             "factor_type",
@@ -469,7 +449,6 @@ def validate_factor_proxies(factor_proxies):
             "must be unique."
         )
 
-    # Exactly one global factor should be defined.
     number_global_factors = (
         factor_proxies[
             "factor_type"
@@ -482,6 +461,304 @@ def validate_factor_proxies(factor_proxies):
         raise ValueError(
             "Exactly one global factor must be defined."
         )
+
+    return True
+
+
+# Validate fallback market-data snapshot.
+
+def validate_market_data(
+    market_data,
+    base_currency,
+):
+
+    required_columns = [
+        "data_type",
+        "currency",
+        "base_currency",
+        "tenor_years",
+        "value",
+        "as_of_date",
+        "curve_type",
+        "source",
+    ]
+
+    missing_columns = [
+        column
+        for column in required_columns
+        if column not in market_data.columns
+    ]
+
+    if missing_columns:
+        raise ValueError(
+            f"Missing market data columns: {missing_columns}"
+        )
+
+    if market_data.empty:
+        raise ValueError(
+            "market_data must not be empty."
+        )
+
+    data_types = (
+        market_data["data_type"]
+        .astype(str)
+        .str.strip()
+        .str.lower()
+    )
+
+    currencies = (
+        market_data["currency"]
+        .astype(str)
+        .str.strip()
+        .str.upper()
+    )
+
+    model_base_currency = str(
+        base_currency
+    ).strip().upper()
+
+    valid_data_types = {
+        "fx",
+        "risk_free",
+    }
+
+    if not data_types.isin(
+        valid_data_types
+    ).all():
+        raise ValueError(
+            "data_type must be either 'fx' or 'risk_free'."
+        )
+
+    if (
+        market_data["currency"].isna().any()
+        or currencies.eq("").any()
+    ):
+        raise ValueError(
+            "Currency must be provided for every market-data row."
+        )
+
+    # Market-data values must be numeric.
+    numeric_values = pd.to_numeric(
+        market_data["value"],
+        errors="coerce",
+    )
+
+    if numeric_values.isna().any():
+        raise ValueError(
+            "Market-data values must be numeric."
+        )
+
+    # Snapshot date must be provided and valid.
+    if market_data[
+        "as_of_date"
+    ].isna().any():
+        raise ValueError(
+            "as_of_date must be provided for every market-data row."
+        )
+
+    snapshot_dates = pd.to_datetime(
+        market_data["as_of_date"],
+        errors="coerce",
+    )
+
+    if snapshot_dates.isna().any():
+        raise ValueError(
+            "as_of_date contains an invalid date."
+        )
+
+    # The fallback table represents one coherent frozen snapshot.
+    if snapshot_dates.dt.normalize().nunique() != 1:
+        raise ValueError(
+            "All fallback market data must use the same as_of_date."
+        )
+
+    fx_rows = (
+        data_types == "fx"
+    )
+
+    risk_free_rows = (
+        data_types == "risk_free"
+    )
+
+    fx_data = market_data.loc[
+        fx_rows
+    ].copy()
+
+    risk_free_data = market_data.loc[
+        risk_free_rows
+    ].copy()
+
+    fx_currencies = currencies.loc[
+        fx_rows
+    ]
+
+    risk_free_currencies = currencies.loc[
+        risk_free_rows
+    ]
+
+
+    # -----------------------------
+    # FX fallback validation
+    # -----------------------------
+
+    if fx_data.empty:
+        raise ValueError(
+            "market_data must contain FX fallback data."
+        )
+
+    fx_base_currencies = (
+        fx_data["base_currency"]
+        .astype(str)
+        .str.strip()
+        .str.upper()
+    )
+
+    if (
+        fx_data["base_currency"].isna().any()
+        or fx_base_currencies.eq("").any()
+    ):
+        raise ValueError(
+            "base_currency must be provided for every FX row."
+        )
+
+    # All stored FX fallback rates must use one common
+    # reference currency.
+    unique_snapshot_bases = (
+        fx_base_currencies.unique()
+    )
+
+    if len(unique_snapshot_bases) != 1:
+        raise ValueError(
+            "All FX fallback rates must use the same "
+            "snapshot reference currency."
+        )
+
+    snapshot_base_currency = (
+        unique_snapshot_bases[0]
+    )
+
+    fx_values = pd.to_numeric(
+        fx_data["value"],
+        errors="coerce",
+    )
+
+    if (fx_values <= 0).any():
+        raise ValueError(
+            "FX fallback rates must be strictly positive."
+        )
+
+    if fx_currencies.duplicated().any():
+        raise ValueError(
+            "Each currency may appear only once in FX fallback data."
+        )
+
+    # FX data does not require a tenor.
+    if fx_data[
+        "tenor_years"
+    ].notna().any():
+        raise ValueError(
+            "FX fallback rows must not contain tenor_years."
+        )
+
+    # The snapshot reference currency must have an FX rate of one.
+    snapshot_base_rows = fx_data.loc[
+        fx_currencies == snapshot_base_currency
+    ]
+
+    if len(snapshot_base_rows) != 1:
+        raise ValueError(
+            "FX fallback data must contain exactly one row "
+            "for the snapshot reference currency."
+        )
+
+    snapshot_base_value = float(
+        snapshot_base_rows["value"].iloc[0]
+    )
+
+    if abs(
+        snapshot_base_value - 1.0
+    ) > 1e-12:
+        raise ValueError(
+            "The FX rate of the snapshot reference currency "
+            "to itself must equal one."
+        )
+
+    # The selected model base currency must exist in the
+    # snapshot so cross-rates can be derived if live FX fails.
+    if model_base_currency not in set(
+        fx_currencies
+    ):
+        raise ValueError(
+            f"Model base currency '{model_base_currency}' "
+            f"is not available in the FX fallback snapshot."
+        )
+
+
+    # -----------------------------
+    # Risk-free fallback validation
+    # -----------------------------
+
+    if risk_free_data.empty:
+        raise ValueError(
+            "market_data must contain risk-free fallback data."
+        )
+
+    # Negative risk-free rates are explicitly allowed.
+    risk_free_values = pd.to_numeric(
+        risk_free_data["value"],
+        errors="coerce",
+    )
+
+    if risk_free_values.isna().any():
+        raise ValueError(
+            "Risk-free fallback rates must be numeric."
+        )
+
+    risk_free_tenors = pd.to_numeric(
+        risk_free_data["tenor_years"],
+        errors="coerce",
+    )
+
+    if risk_free_tenors.isna().any():
+        raise ValueError(
+            "Risk-free fallback rows must contain tenor_years."
+        )
+
+    if (risk_free_tenors <= 0).any():
+        raise ValueError(
+            "Risk-free tenors must be strictly positive."
+        )
+
+    # This permits multiple tenors per currency later,
+    # while preventing duplicate curve points.
+    risk_free_keys = pd.DataFrame({
+        "currency": risk_free_currencies.to_numpy(),
+        "tenor_years": risk_free_tenors.to_numpy(),
+    })
+
+    if risk_free_keys.duplicated().any():
+        raise ValueError(
+            "Each currency and tenor combination must be unique "
+            "in risk-free fallback data."
+        )
+
+    if risk_free_data[
+        "curve_type"
+    ].isna().any():
+        raise ValueError(
+            "curve_type must be provided for risk-free fallback data."
+        )
+
+    if risk_free_data[
+        "source"
+    ].isna().any():
+        raise ValueError(
+            "source must be provided for risk-free fallback data."
+        )
+
+    # Important model assumption:
+    # flat_policy_proxy rows are simplified fallback inputs only.
+    # They are not interpreted as calibrated market yield curves.
 
     return True
 
@@ -515,7 +792,6 @@ def validate_rating_migration_matrix(
         "row_sum",
     ]
 
-    # Check required columns.
     missing_columns = [
         column
         for column in required_columns
