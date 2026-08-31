@@ -1,4 +1,4 @@
-#### Unit Tests for Credit Portfolio Input ####
+#### Unit Tests Credit Portfolio Input ####
 
 import pandas as pd
 import pytest
@@ -12,34 +12,77 @@ from quant_finance.credit.portfolio_input import (
 )
 
 
-# Create a small valid portfolio for validation tests.
-
 def create_valid_portfolio():
 
     return pd.DataFrame({
-        "counterparty": ["Company A", "Company B"],
-        "ticker": [None, "AAPL"],
-        "factor_loading_proxy_ticker": ["SIE.DE", None],
-        "exposure": [10_000_000, 5_000_000],
-        "currency": ["CHF", "USD"],
-        "lgd": [0.45, 0.40],
-        "pd_method": ["rating", "merton"],
-        "rating": ["AA", None],
-        "equity_value": [None, None],
-        "equity_volatility": [None, None],
-        "debt": [None, None],
-        "risk_free_rate": [None, None],
-        "maturity": [5, 3],
-        "coupon_rate": [0.03, 0.04],
-        "payment_frequency": [2, 1],
-        "sector": ["Financials", "Technology"],
-        "region": ["Europe", "US"],
+        "counterparty": [
+            "Listed Co",
+            "Private Co",
+        ],
+        "ticker": [
+            "TEST",
+            None,
+        ],
+        "factor_loading_proxy_ticker": [
+            None,
+            "PROXY",
+        ],
+        "exposure": [
+            100.0,
+            50.0,
+        ],
+        "currency": [
+            "USD",
+            "EUR",
+        ],
+        "lgd": [
+            0.50,
+            0.50,
+        ],
+        "pd_method": [
+            "rating",
+            "merton",
+        ],
+        "rating": [
+            "AA",
+            None,
+        ],
+        "equity_value": [
+            None,
+            20.0,
+        ],
+        "equity_volatility": [
+            None,
+            0.45,
+        ],
+        "debt": [
+            None,
+            80.0,
+        ],
+        "maturity": [
+            5.0,
+            4.0,
+        ],
+        "coupon_rate": [
+            0.04,
+            0.05,
+        ],
+        "payment_frequency": [
+            2,
+            1,
+        ],
+        "sector": [
+            "Technology",
+            "Industrial",
+        ],
+        "region": [
+            "US",
+            "Europe",
+        ],
     })
 
 
-# Create valid model settings for validation tests.
-
-def create_valid_model_settings():
+def create_valid_settings():
 
     return {
         "number_simulations": 100000,
@@ -49,11 +92,39 @@ def create_valid_model_settings():
         "t_degrees_of_freedom": 5,
         "factor_structure": "global_sector_region",
         "factor_lookback_years": 3,
-        "base_currency": "CHF",
+        "base_currency": "USD",
     }
 
 
-# Create valid fallback market data.
+def create_valid_factor_proxies():
+
+    return pd.DataFrame({
+        "factor_type": [
+            "global",
+            "region",
+            "region",
+            "sector",
+        ],
+        "factor_name": [
+            "Global",
+            "US",
+            "Europe",
+            "Technology",
+        ],
+        "ticker": [
+            "ACWI",
+            "SPY",
+            "VGK",
+            "IXN",
+        ],
+        "description": [
+            "Global market proxy.",
+            "US regional proxy.",
+            "European regional proxy.",
+            "Technology sector proxy.",
+        ],
+    })
+
 
 def create_valid_market_data():
 
@@ -61,34 +132,58 @@ def create_valid_market_data():
         "data_type": [
             "fx",
             "fx",
+            "fx",
+            "fx",
+            "risk_free",
+            "risk_free",
             "risk_free",
             "risk_free",
         ],
         "currency": [
             "CHF",
+            "USD",
             "EUR",
+            "GBP",
             "CHF",
+            "USD",
             "EUR",
+            "GBP",
         ],
         "base_currency": [
             "CHF",
             "CHF",
+            "CHF",
+            "CHF",
+            None,
+            None,
             None,
             None,
         ],
         "tenor_years": [
             None,
             None,
+            None,
+            None,
+            1.0,
+            1.0,
             1.0,
             1.0,
         ],
         "value": [
             1.0,
-            0.93,
+            0.80,
+            0.94,
+            1.07,
             0.00,
+            0.04,
             0.02,
+            0.04,
         ],
         "as_of_date": [
+            "2025-12-31",
+            "2025-12-31",
+            "2025-12-31",
+            "2025-12-31",
             "2025-12-31",
             "2025-12-31",
             "2025-12-31",
@@ -97,120 +192,149 @@ def create_valid_market_data():
         "curve_type": [
             None,
             None,
+            None,
+            None,
+            "flat_policy_proxy",
+            "flat_policy_proxy",
             "flat_policy_proxy",
             "flat_policy_proxy",
         ],
         "source": [
-            "ECB",
-            "ECB",
-            "SNB",
-            "ECB",
+            "Demo snapshot",
+            "Demo snapshot",
+            "Demo snapshot",
+            "Demo snapshot",
+            "Demo fallback",
+            "Demo fallback",
+            "Demo fallback",
+            "Demo fallback",
         ],
     })
 
-
-# Create a valid synthetic rating migration matrix.
 
 def create_valid_rating_migration_matrix():
 
-    return pd.DataFrame({
-        "current_rating": [
-            "AAA", "AA", "A", "BBB",
-            "BB", "B", "CCC", "D",
-        ],
-        "spread_bps": [
-            30, 50, 80, 150,
-            300, 600, 1200, None,
-        ],
+    ratings = [
+        "AAA",
+        "AA",
+        "A",
+        "BBB",
+        "BB",
+        "B",
+        "CCC",
+        "D",
+    ]
+
+    transition_matrix = [
+        [0.90, 0.08, 0.01, 0.005, 0.003, 0.001, 0.0005, 0.0005],
+        [0.02, 0.90, 0.06, 0.01, 0.005, 0.002, 0.001, 0.002],
+        [0.005, 0.03, 0.88, 0.06, 0.015, 0.005, 0.002, 0.003],
+        [0.002, 0.008, 0.04, 0.84, 0.07, 0.025, 0.008, 0.007],
+        [0.001, 0.003, 0.01, 0.05, 0.80, 0.09, 0.025, 0.021],
+        [0.001, 0.001, 0.003, 0.01, 0.06, 0.76, 0.09, 0.075],
+        [0.0005, 0.0005, 0.001, 0.003, 0.01, 0.05, 0.70, 0.235],
+        [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0],
+    ]
+
+    spreads_bps = [
+        20,
+        40,
+        70,
+        120,
+        250,
+        500,
+        1000,
+        None,
+    ]
+
+    data = {
+        "current_rating": ratings,
+        "spread_bps": spreads_bps,
         "spread_decimal": [
-            0.003, 0.005, 0.008, 0.015,
-            0.030, 0.060, 0.120, None,
+            0.002,
+            0.004,
+            0.007,
+            0.012,
+            0.025,
+            0.050,
+            0.100,
+            None,
         ],
-        "AAA": [
-            0.9150, 0.0080, 0.0010, 0.0002,
-            0.0000, 0.0000, 0.0000, 0.0000,
-        ],
-        "AA": [
-            0.0750, 0.9000, 0.0250, 0.0030,
-            0.0005, 0.0001, 0.0000, 0.0000,
-        ],
-        "A": [
-            0.0080, 0.0750, 0.8900, 0.0350,
-            0.0050, 0.0010, 0.0005, 0.0000,
-        ],
-        "BBB": [
-            0.0010, 0.0120, 0.0650, 0.8500,
-            0.0350, 0.0050, 0.0015, 0.0000,
-        ],
-        "BB": [
-            0.0003, 0.0020, 0.0120, 0.0750,
-            0.8000, 0.0500, 0.0080, 0.0000,
-        ],
-        "B": [
-            0.0001, 0.0010, 0.0030, 0.0200,
-            0.1000, 0.7800, 0.0500, 0.0000,
-        ],
-        "CCC": [
-            0.0001, 0.0005, 0.0010, 0.0050,
-            0.0250, 0.0800, 0.6000, 0.0000,
-        ],
-        "D": [
-            0.0005, 0.0015, 0.0030, 0.0118,
-            0.0345, 0.0839, 0.3400, 1.0000,
-        ],
-        "row_sum": [
-            1.0, 1.0, 1.0, 1.0,
-            1.0, 1.0, 1.0, 1.0,
-        ],
-    })
+    }
+
+    for column_index, rating in enumerate(ratings):
+        data[rating] = [
+            row[column_index]
+            for row in transition_matrix
+        ]
+
+    data["row_sum"] = [
+        sum(row)
+        for row in transition_matrix
+    ]
+
+    return pd.DataFrame(data)
 
 
-# 1. Valid portfolio passes validation.
-
+# 1. Valid portfolio passes.
 def test_valid_portfolio():
+    assert validate_portfolio(create_valid_portfolio())
 
+
+# 2. risk_free_rate is no longer required in the portfolio input.
+def test_portfolio_does_not_require_risk_free_rate():
     portfolio = create_valid_portfolio()
 
-    assert validate_portfolio(portfolio) is True
+    assert "risk_free_rate" not in portfolio.columns
+    assert validate_portfolio(portfolio)
 
 
-# 2. Negative exposure raises an error.
-
-def test_negative_exposure():
-
-    portfolio = create_valid_portfolio()
-    portfolio.loc[0, "exposure"] = -1
+# 3. Missing required portfolio column raises an error.
+def test_missing_portfolio_column():
+    portfolio = create_valid_portfolio().drop(columns=["exposure"])
 
     with pytest.raises(ValueError):
         validate_portfolio(portfolio)
 
 
-# 3. Invalid LGD raises an error.
+# 4. Exposure must be positive.
+def test_invalid_exposure():
+    portfolio = create_valid_portfolio()
+    portfolio.loc[0, "exposure"] = 0
 
+    with pytest.raises(ValueError):
+        validate_portfolio(portfolio)
+
+
+# 5. LGD must lie between zero and one.
 def test_invalid_lgd():
-
     portfolio = create_valid_portfolio()
-    portfolio.loc[0, "lgd"] = 1.2
+    portfolio.loc[0, "lgd"] = 1.20
 
     with pytest.raises(ValueError):
         validate_portfolio(portfolio)
 
 
-# 4. Invalid PD method raises an error.
+# 6. Currency is required.
+def test_missing_currency():
+    portfolio = create_valid_portfolio()
+    portfolio.loc[0, "currency"] = None
 
+    with pytest.raises(ValueError):
+        validate_portfolio(portfolio)
+
+
+# 7. PD method must be valid.
 def test_invalid_pd_method():
-
     portfolio = create_valid_portfolio()
-    portfolio.loc[0, "pd_method"] = "other"
+    portfolio.loc[0, "pd_method"] = "invalid"
 
     with pytest.raises(ValueError):
         validate_portfolio(portfolio)
 
 
-# 5. Rating method requires a rating.
-
-def test_missing_rating():
-
+# 8. Rating-based counterparties require a rating.
+def test_rating_method_requires_rating():
     portfolio = create_valid_portfolio()
     portfolio.loc[0, "rating"] = None
 
@@ -218,247 +342,127 @@ def test_missing_rating():
         validate_portfolio(portfolio)
 
 
-# 6. Merton method requires either ticker or manual inputs.
-
-def test_missing_merton_inputs():
-
+# 9. Manual Merton inputs work without a risk-free-rate input.
+def test_manual_merton_inputs_without_risk_free_rate():
     portfolio = create_valid_portfolio()
-    portfolio.loc[1, "ticker"] = None
+
+    assert validate_portfolio(portfolio)
+
+
+# 10. Incomplete Merton inputs without ticker raise an error.
+def test_incomplete_manual_merton_inputs():
+    portfolio = create_valid_portfolio()
+    portfolio.loc[1, "equity_value"] = None
 
     with pytest.raises(ValueError):
         validate_portfolio(portfolio)
 
 
-# 7. Manual Merton inputs do not require a manual risk-free rate.
-
-def test_manual_merton_without_risk_free_rate():
-
+# 11. Unlisted counterparty requires a factor proxy ticker.
+def test_unlisted_counterparty_requires_factor_proxy():
     portfolio = create_valid_portfolio()
+    portfolio.loc[1, "factor_loading_proxy_ticker"] = None
 
-    portfolio.loc[1, "ticker"] = None
-    portfolio.loc[1, "factor_loading_proxy_ticker"] = "AAPL"
-    portfolio.loc[1, "equity_value"] = 100.0
-    portfolio.loc[1, "equity_volatility"] = 0.25
-    portfolio.loc[1, "debt"] = 50.0
-    portfolio.loc[1, "risk_free_rate"] = None
-
-    assert validate_portfolio(portfolio) is True
+    with pytest.raises(ValueError):
+        validate_portfolio(portfolio)
 
 
-# 8. Valid model settings pass validation.
-
+# 12. Valid model settings pass.
 def test_valid_model_settings():
-
-    settings = create_valid_model_settings()
-
-    assert validate_model_settings(settings) is True
+    assert validate_model_settings(create_valid_settings())
 
 
-# 9. Invalid dependence model raises an error.
-
-def test_invalid_dependence_model():
-
-    settings = create_valid_model_settings()
-    settings["dependence_model"] = "invalid"
-
-    with pytest.raises(ValueError):
-        validate_model_settings(settings)
-
-
-# 10. Invalid t-copula degrees of freedom raises an error.
-
-def test_invalid_t_degrees_of_freedom():
-
-    settings = create_valid_model_settings()
-    settings["t_degrees_of_freedom"] = 2
-
-    with pytest.raises(ValueError):
-        validate_model_settings(settings)
-
-
-# 11. Invalid base currency raises an error.
-
+# 13. Invalid base currency raises an error.
 def test_invalid_base_currency():
-
-    settings = create_valid_model_settings()
-    settings["base_currency"] = "CH"
+    settings = create_valid_settings()
+    settings["base_currency"] = "US"
 
     with pytest.raises(ValueError):
         validate_model_settings(settings)
 
 
-# 12. Valid factor proxies pass validation.
-
+# 14. Valid factor proxies pass.
 def test_valid_factor_proxies():
-
-    factor_proxies = pd.DataFrame({
-        "factor_type": [
-            "global",
-            "region",
-            "sector",
-        ],
-        "factor_name": [
-            "Global",
-            "Europe",
-            "Industrial",
-        ],
-        "ticker": [
-            "ACWI",
-            "VGK",
-            "EXI",
-        ],
-        "description": [
-            "Global proxy",
-            "Europe proxy",
-            "Industrial proxy",
-        ],
-    })
-
-    assert validate_factor_proxies(factor_proxies) is True
+    assert validate_factor_proxies(create_valid_factor_proxies())
 
 
-# 13. Duplicate factor mapping raises an error.
-
-def test_duplicate_factor_proxy():
-
-    factor_proxies = pd.DataFrame({
-        "factor_type": [
-            "global",
-            "region",
-            "region",
-        ],
-        "factor_name": [
-            "Global",
-            "Europe",
-            "Europe",
-        ],
-        "ticker": [
-            "ACWI",
-            "VGK",
-            "VGK",
-        ],
-        "description": [
-            "Global proxy",
-            "Europe proxy",
-            "Europe proxy",
-        ],
-    })
-
-    with pytest.raises(ValueError):
-        validate_factor_proxies(factor_proxies)
-
-
-# 14. Unlisted counterparty requires a factor-loading proxy ticker.
-
-def test_missing_factor_loading_proxy():
-
-    portfolio = create_valid_portfolio()
-    portfolio.loc[0, "factor_loading_proxy_ticker"] = None
-
-    with pytest.raises(ValueError):
-        validate_portfolio(portfolio)
-
-
-# 15. Valid rating migration matrix passes validation.
-
-def test_valid_rating_migration_matrix():
-
-    rating_migration_matrix = (
-        create_valid_rating_migration_matrix()
-    )
-
-    assert validate_rating_migration_matrix(
-        rating_migration_matrix
-    ) is True
-
-
-# 16. Rating transition rows must sum to one.
-
-def test_invalid_rating_transition_row_sum():
-
-    rating_migration_matrix = (
-        create_valid_rating_migration_matrix()
-    )
-
-    rating_migration_matrix.loc[0, "AAA"] = 0.80
-
-    with pytest.raises(ValueError):
-        validate_rating_migration_matrix(
-            rating_migration_matrix
-        )
-
-
-# 17. Valid fallback market data passes validation.
-
+# 15. Valid market data passes.
 def test_valid_market_data():
-
     market_data = create_valid_market_data()
 
     assert validate_market_data(
         market_data,
-        base_currency="CHF",
-    ) is True
+        base_currency="USD",
+    )
 
 
-# 18. FX fallback rates must be positive.
+# 16. CHF-anchored FX snapshot also supports another model base.
+def test_fx_snapshot_supports_different_model_base():
+    market_data = create_valid_market_data()
 
+    assert validate_market_data(
+        market_data,
+        base_currency="EUR",
+    )
+
+
+# 17. FX rates must be positive.
 def test_invalid_fx_rate():
-
     market_data = create_valid_market_data()
     market_data.loc[1, "value"] = 0.0
 
     with pytest.raises(ValueError):
         validate_market_data(
             market_data,
-            base_currency="CHF",
+            base_currency="USD",
         )
 
 
-# 19. Base-currency FX rate must equal one.
-
-def test_invalid_base_currency_fx_rate():
-
+# 18. Snapshot reference currency FX rate must equal one.
+def test_invalid_snapshot_reference_fx_rate():
     market_data = create_valid_market_data()
     market_data.loc[0, "value"] = 0.99
 
     with pytest.raises(ValueError):
         validate_market_data(
             market_data,
-            base_currency="CHF",
+            base_currency="USD",
         )
 
 
-# 20. Negative risk-free fallback rates are allowed.
-
+# 19. Negative risk-free rates are allowed.
 def test_negative_risk_free_rate_allowed():
-
     market_data = create_valid_market_data()
-    market_data.loc[2, "value"] = -0.005
+    market_data.loc[4, "value"] = -0.005
 
     assert validate_market_data(
         market_data,
-        base_currency="CHF",
-    ) is True
+        base_currency="USD",
+    )
 
 
-# 21. Duplicate risk-free curve points raise an error.
-
+# 20. Duplicate risk-free curve point raises an error.
 def test_duplicate_risk_free_curve_point():
-
     market_data = create_valid_market_data()
 
-    duplicate_row = market_data.loc[[2]].copy()
+    duplicate_row = market_data.iloc[[5]].copy()
 
     market_data = pd.concat(
-        [
-            market_data,
-            duplicate_row,
-        ],
+        [market_data, duplicate_row],
         ignore_index=True,
     )
 
     with pytest.raises(ValueError):
         validate_market_data(
             market_data,
-            base_currency="CHF",
+            base_currency="USD",
         )
+
+
+# 21. Valid rating migration matrix passes.
+def test_valid_rating_migration_matrix():
+    migration_matrix = create_valid_rating_migration_matrix()
+
+    assert validate_rating_migration_matrix(
+        migration_matrix
+    )

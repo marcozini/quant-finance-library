@@ -1,4 +1,4 @@
-#### Unit Test Credit Portfolio Model ####
+#### Unit Tests Credit Portfolio Model ####
 
 import numpy as np
 import pandas as pd
@@ -27,11 +27,24 @@ def test_run_credit_portfolio_model(monkeypatch):
     rating_migration_matrix = pd.DataFrame()
     market_data = pd.DataFrame()
 
-    portfolio_losses = np.array([0.0, 0.0, 5.0, 10.0])
-    counterparty_losses = portfolio_losses.reshape(-1, 1)
+    portfolio_losses = np.array([
+        0.0,
+        0.0,
+        5.0,
+        10.0,
+    ])
+
+    counterparty_losses = (
+        portfolio_losses.reshape(-1, 1)
+    )
 
     migration_states = np.array(
-        [["A"], ["A"], ["BBB"], ["D"]],
+        [
+            ["A"],
+            ["A"],
+            ["BBB"],
+            ["D"],
+        ],
         dtype=object,
     )
 
@@ -97,7 +110,7 @@ def test_run_credit_portfolio_model(monkeypatch):
         lambda market_data, base_currency: None,
     )
 
-    # Components below already have dedicated tests.
+    # Components below have dedicated tests.
     monkeypatch.setattr(
         portfolio_model,
         "_complete_risk_free_rates",
@@ -138,8 +151,11 @@ def test_run_credit_portfolio_model(monkeypatch):
         ),
     )
 
-    results = portfolio_model.run_credit_portfolio_model(
-        "dummy.xlsx"
+    results = (
+        portfolio_model
+        .run_credit_portfolio_model(
+            "dummy.xlsx"
+        )
     )
 
     # Check main output structure.
@@ -152,17 +168,148 @@ def test_run_credit_portfolio_model(monkeypatch):
     assert "counterparty_losses" in results
 
     # Check selected model base currency.
-    assert results["summary"]["base_currency"] == "USD"
+    assert (
+        results["summary"]["base_currency"]
+        == "USD"
+    )
 
     # Check portfolio risk metrics.
-    assert "default_expected_loss" in results["summary"]
-    assert "migration_mean_loss" in results["summary"]
-    assert "value_at_risk" in results["summary"]
-    assert "expected_shortfall" in results["summary"]
-    assert "unexpected_loss" in results["summary"]
+    assert (
+        "default_expected_loss"
+        in results["summary"]
+    )
+
+    assert (
+        "migration_mean_loss"
+        in results["summary"]
+    )
+
+    assert (
+        "value_at_risk"
+        in results["summary"]
+    )
+
+    assert (
+        "expected_shortfall"
+        in results["summary"]
+    )
+
+    assert (
+        "unexpected_loss"
+        in results["summary"]
+    )
 
     # Check risk contribution columns.
-    assert "incremental_var" in results["portfolio"].columns
-    assert "incremental_es" in results["portfolio"].columns
-    assert "marginal_var" in results["portfolio"].columns
-    assert "marginal_es" in results["portfolio"].columns
+    assert (
+        "incremental_var"
+        in results["portfolio"].columns
+    )
+
+    assert (
+        "incremental_es"
+        in results["portfolio"].columns
+    )
+
+    assert (
+        "marginal_var"
+        in results["portfolio"].columns
+    )
+
+    assert (
+        "marginal_es"
+        in results["portfolio"].columns
+    )
+
+
+# Listed counterparty falls back to proxy ticker
+# if its own factor-market-data retrieval fails.
+def test_factor_loading_fallback_proxy(monkeypatch):
+
+    portfolio = pd.DataFrame({
+        "counterparty": ["Test Co"],
+        "ticker": ["BAD"],
+        "factor_loading_proxy_ticker": ["PROXY"],
+        "region": ["US"],
+        "sector": ["Technology"],
+    })
+
+    def mock_factor_loadings(
+        company_ticker,
+        **kwargs,
+    ):
+
+        if company_ticker == "BAD":
+            raise ValueError(
+                "No market data found."
+            )
+
+        return (
+            0.40,
+            0.20,
+            0.10,
+            0.80,
+        )
+
+    monkeypatch.setattr(
+        portfolio_model,
+        "estimate_counterparty_factor_loadings",
+        mock_factor_loadings,
+    )
+
+    result = (
+        portfolio_model
+        ._estimate_portfolio_factor_loadings(
+            portfolio=portfolio,
+            factor_proxies=pd.DataFrame(),
+            start_date=None,
+            end_date=None,
+        )
+    )
+
+    assert (
+        result.loc[
+            0,
+            "factor_calibration_ticker",
+        ]
+        == "PROXY"
+    )
+
+    assert (
+        result.loc[
+            0,
+            "factor_source",
+        ]
+        == "fallback_proxy_ticker"
+    )
+
+    assert (
+        result.loc[
+            0,
+            "global_loading",
+        ]
+        == 0.40
+    )
+
+    assert (
+        result.loc[
+            0,
+            "region_loading",
+        ]
+        == 0.20
+    )
+
+    assert (
+        result.loc[
+            0,
+            "sector_loading",
+        ]
+        == 0.10
+    )
+
+    assert (
+        result.loc[
+            0,
+            "idiosyncratic_loading",
+        ]
+        == 0.80
+    )
