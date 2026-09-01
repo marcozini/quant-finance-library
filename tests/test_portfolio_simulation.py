@@ -402,3 +402,55 @@ def test_migration_state_probabilities():
         expected_probabilities,
         abs=0.003,
     )
+    
+    
+# 8. Every supported dependence-model / factor-structure
+# combination runs successfully through the simulation engine.
+@pytest.mark.parametrize(
+    "dependence_model",
+    [
+        "independent",
+        "gaussian_copula",
+        "t_copula",
+    ],
+)
+@pytest.mark.parametrize(
+    "factor_structure",
+    [
+        "single_factor",
+        "global_sector",
+        "global_region",
+        "global_sector_region",
+    ],
+)
+def test_all_dependence_factor_combinations_run(
+    dependence_model,
+    factor_structure,
+):
+
+    portfolio = create_test_portfolio()
+    settings = create_test_settings()
+
+    # Keep this integration-style unit test light.
+    settings["number_simulations"] = 2000
+    settings["dependence_model"] = dependence_model
+    settings["factor_structure"] = factor_structure
+
+    defaults = simulate_default_matrix(
+        portfolio=portfolio,
+        settings=settings,
+    )
+
+    assert defaults.shape == (
+        settings["number_simulations"],
+        len(portfolio),
+    )
+
+    assert np.all(
+        np.isfinite(defaults)
+    )
+
+    assert np.all(
+        (defaults == 0)
+        | (defaults == 1)
+    )
