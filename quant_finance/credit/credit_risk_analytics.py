@@ -40,7 +40,7 @@ def portfolio_expected_loss(
             "exposures, pds, and lgds must have the same length."
         )
 
-    total_expected_loss = sum(
+    return sum(
         expected_loss(
             exposure,
             pd,
@@ -53,17 +53,22 @@ def portfolio_expected_loss(
         )
     )
 
-    return total_expected_loss
-
 
 # Change in portfolio risk charge after adding a new exposure.
-def incremental_risk(old_rc, new_rc):
+def incremental_risk(
+    old_rc,
+    new_rc,
+):
 
     return new_rc - old_rc
 
 
 # Additional risk charge per unit of added exposure.
-def marginal_risk(old_rc, new_rc, added_asset):
+def marginal_risk(
+    old_rc,
+    new_rc,
+    added_asset,
+):
 
     if added_asset <= 0:
         raise ValueError(
@@ -101,6 +106,137 @@ def diversification_ratio(
     return (
         incremental_rc
         / standalone_rc
+    )
+
+
+# Calculate the number of simulated scenarios belonging to the tail.
+def tail_scenario_count(
+    number_observations,
+    confidence_level,
+):
+
+    if not 0 < confidence_level < 1:
+        raise ValueError(
+            "confidence_level must be between zero and one."
+        )
+
+    if (
+        not isinstance(
+            number_observations,
+            (int, np.integer),
+        )
+        or number_observations <= 0
+    ):
+        raise ValueError(
+            "number_observations must be a positive integer."
+        )
+
+    tail_size = (
+        (1 - confidence_level)
+        * number_observations
+    )
+
+    nearest_integer = round(
+        tail_size
+    )
+
+    # Floating-point arithmetic can turn exact theoretical
+    # values such as 5000 into 5000.000000000005.
+    # Use a scale-aware tolerance to identify such cases.
+    tolerance = (
+        10
+        * np.finfo(float).eps
+        * max(
+            1.0,
+            abs(tail_size),
+        )
+    )
+
+    if (
+        abs(
+            tail_size
+            - nearest_integer
+        )
+        <= tolerance
+    ):
+        number_tail_scenarios = int(
+            nearest_integer
+        )
+
+    else:
+        number_tail_scenarios = int(
+            np.ceil(
+                tail_size
+            )
+        )
+
+    return max(
+        1,
+        number_tail_scenarios,
+    )
+
+
+# Calculate the number of simulated scenarios belonging to the tail.
+def tail_scenario_count(
+    number_observations,
+    confidence_level,
+):
+
+    if not 0 < confidence_level < 1:
+        raise ValueError(
+            "confidence_level must be between zero and one."
+        )
+
+    if (
+        not isinstance(
+            number_observations,
+            (int, np.integer),
+        )
+        or number_observations <= 0
+    ):
+        raise ValueError(
+            "number_observations must be a positive integer."
+        )
+
+    tail_size = (
+        (1 - confidence_level)
+        * number_observations
+    )
+
+    nearest_integer = round(
+        tail_size
+    )
+
+    tolerance = (
+        10
+        * np.finfo(float).eps
+        * max(
+            1.0,
+            abs(tail_size),
+        )
+    )
+
+    if (
+        abs(
+            tail_size
+            - nearest_integer
+        )
+        <= tolerance
+    ):
+        number_tail_scenarios = int(
+            nearest_integer
+        )
+
+    else:
+        number_tail_scenarios = int(
+            np.ceil(
+                tail_size
+            )
+        )
+
+    return max(
+        1,
+        number_tail_scenarios,
     )
 
 
@@ -158,10 +294,12 @@ def expected_shortfall(
         losses
     )
 
-    number_tail_scenarios = int(
-        np.ceil(
-            (1 - confidence_level)
-            * len(sorted_losses)
+    number_tail_scenarios = (
+        tail_scenario_count(
+            number_observations=len(
+                sorted_losses
+            ),
+            confidence_level=confidence_level,
         )
     )
 
