@@ -1,17 +1,26 @@
 #### Credit Portfolio Input ####
 
+from datetime import date, datetime
+
+import numpy as np
 import pandas as pd
 
 
 # Load credit portfolio data from the Excel steering file.
 def load_portfolio(file_path):
-    return pd.read_excel(file_path, sheet_name="credit_portfolio")
+    return pd.read_excel(
+        file_path,
+        sheet_name="credit_portfolio",
+    )
 
 
 # Load model settings from the Excel steering file.
 def load_model_settings(file_path):
 
-    settings_data = pd.read_excel(file_path, sheet_name="model_settings")
+    settings_data = pd.read_excel(
+        file_path,
+        sheet_name="model_settings",
+    )
 
     if (
         "setting" not in settings_data.columns
@@ -20,34 +29,6 @@ def load_model_settings(file_path):
         raise ValueError(
             "The model_settings sheet must contain "
             "'setting' and 'value' columns."
-        )
-
-    # Ignore completely empty setting rows.
-    settings_data = settings_data.dropna(
-        subset=["setting"]
-    ).copy()
-
-    # Remove accidental surrounding whitespace.
-    settings_data["setting"] = (
-        settings_data["setting"]
-        .astype(str)
-        .str.strip()
-    )
-
-    if settings_data["setting"].eq("").any():
-        raise ValueError(
-            "Model setting names must not be empty."
-        )
-
-    # Duplicate settings are ambiguous and should fail explicitly.
-    duplicate_settings = settings_data.loc[
-        settings_data["setting"].duplicated(),
-        "setting",
-    ].tolist()
-
-    if duplicate_settings:
-        raise ValueError(
-            f"Duplicate model settings found: {duplicate_settings}"
         )
 
     return dict(
@@ -60,17 +41,89 @@ def load_model_settings(file_path):
 
 # Load factor proxy mappings from the Excel steering file.
 def load_factor_proxies(file_path):
-    return pd.read_excel(file_path, sheet_name="factor_proxies")
+    return pd.read_excel(
+        file_path,
+        sheet_name="factor_proxies",
+    )
 
 
 # Load rating migration matrix and credit spread inputs.
 def load_rating_migration_matrix(file_path):
-    return pd.read_excel(file_path, sheet_name="rating_migration_matrix")
+    return pd.read_excel(
+        file_path,
+        sheet_name="rating_migration_matrix",
+    )
 
 
 # Load fallback market-data snapshot.
 def load_market_data(file_path):
-    return pd.read_excel(file_path, sheet_name="market_data")
+    return pd.read_excel(
+        file_path,
+        sheet_name="market_data",
+    )
+
+
+# Parse the market-data date setting.
+#
+# "latest" returns None, which tells the market-data functions
+# to use the latest available observation.
+#
+# A specific date returns a Python date object and is used as
+# the upper date limit for automatic market-data retrieval.
+def parse_market_data_date(value):
+
+    if pd.isna(value):
+        raise ValueError(
+            "market_data_date must be 'latest' or a date "
+            "in YYYY-MM-DD format."
+        )
+
+    # Text input from Excel.
+    if isinstance(value, str):
+
+        value = value.strip()
+
+        if value.lower() == "latest":
+            return None
+
+        try:
+            parsed_date = datetime.strptime(
+                value,
+                "%Y-%m-%d",
+            ).date()
+
+        except ValueError as error:
+            raise ValueError(
+                "market_data_date must be 'latest' or a date "
+                "in YYYY-MM-DD format."
+            ) from error
+
+    # Excel may return date cells as datetime or Timestamp objects.
+    elif isinstance(
+        value,
+        (
+            datetime,
+            date,
+            pd.Timestamp,
+        ),
+    ):
+
+        parsed_date = pd.Timestamp(
+            value
+        ).date()
+
+    else:
+        raise ValueError(
+            "market_data_date must be 'latest' or a date "
+            "in YYYY-MM-DD format."
+        )
+
+    if parsed_date > date.today():
+        raise ValueError(
+            "market_data_date must not be in the future."
+        )
+
+    return parsed_date
 
 
 # Validate the basic structure and values of the credit portfolio.
@@ -107,7 +160,10 @@ def validate_portfolio(portfolio):
         )
 
     # Exposure must be strictly positive.
-    if (portfolio["exposure"] <= 0).any():
+    if (
+        portfolio["exposure"]
+        <= 0
+    ).any():
         raise ValueError(
             "Exposure must be strictly positive."
         )
@@ -144,9 +200,11 @@ def validate_portfolio(portfolio):
         "merton",
     }
 
-    if not portfolio["pd_method"].isin(
-        valid_pd_methods
-    ).all():
+    if not (
+        portfolio["pd_method"]
+        .isin(valid_pd_methods)
+        .all()
+    ):
         raise ValueError(
             "pd_method must be either 'rating' or 'merton'."
         )
@@ -182,18 +240,31 @@ def validate_portfolio(portfolio):
         "debt",
     ]
 
-    for _, row in portfolio.loc[merton_rows].iterrows():
+    for _, row in portfolio.loc[
+        merton_rows
+    ].iterrows():
 
         has_ticker = (
-            pd.notna(row["ticker"])
-            and str(row["ticker"]).strip() != ""
+            pd.notna(
+                row["ticker"]
+            )
+            and str(
+                row["ticker"]
+            ).strip() != ""
         )
 
-        has_manual_inputs = row[
-            manual_merton_columns
-        ].notna().all()
+        has_manual_inputs = (
+            row[
+                manual_merton_columns
+            ]
+            .notna()
+            .all()
+        )
 
-        if not has_ticker and not has_manual_inputs:
+        if (
+            not has_ticker
+            and not has_manual_inputs
+        ):
             raise ValueError(
                 f"Merton inputs are incomplete for counterparty "
                 f"'{row['counterparty']}'. Provide either a ticker "
@@ -205,18 +276,31 @@ def validate_portfolio(portfolio):
     for _, row in portfolio.iterrows():
 
         has_ticker = (
-            pd.notna(row["ticker"])
-            and str(row["ticker"]).strip() != ""
-        )
-
-        has_factor_loading_proxy = (
-            pd.notna(row["factor_loading_proxy_ticker"])
+            pd.notna(
+                row["ticker"]
+            )
             and str(
-                row["factor_loading_proxy_ticker"]
+                row["ticker"]
             ).strip() != ""
         )
 
-        if not has_ticker and not has_factor_loading_proxy:
+        has_factor_loading_proxy = (
+            pd.notna(
+                row[
+                    "factor_loading_proxy_ticker"
+                ]
+            )
+            and str(
+                row[
+                    "factor_loading_proxy_ticker"
+                ]
+            ).strip() != ""
+        )
+
+        if (
+            not has_ticker
+            and not has_factor_loading_proxy
+        ):
             raise ValueError(
                 f"A factor-loading proxy ticker must be provided "
                 f"for unlisted counterparty "
@@ -224,38 +308,6 @@ def validate_portfolio(portfolio):
             )
 
     return True
-
-
-# Validate a TRUE/FALSE-style model setting.
-def _validate_boolean_setting(value, setting_name):
-
-    if isinstance(value, bool):
-        return
-
-    if (
-        isinstance(value, (int, float))
-        and not pd.isna(value)
-        and value in {0, 1}
-    ):
-        return
-
-    if isinstance(value, str):
-
-        normalized_value = value.strip().lower()
-
-        if normalized_value in {
-            "true",
-            "false",
-            "yes",
-            "no",
-            "1",
-            "0",
-        }:
-            return
-
-    raise ValueError(
-        f"{setting_name} must be TRUE or FALSE."
-    )
 
 
 # Validate model settings.
@@ -270,9 +322,7 @@ def validate_model_settings(settings):
         "factor_structure",
         "factor_lookback_years",
         "base_currency",
-        "create_excel_output",
-        "create_pdf_output",
-        "create_plot_files",
+        "market_data_date",
     ]
 
     missing_settings = [
@@ -286,37 +336,54 @@ def validate_model_settings(settings):
             f"Missing model settings: {missing_settings}"
         )
 
-    number_simulations = settings["number_simulations"]
+    # -----------------------------
+    # Monte Carlo settings
+    # -----------------------------
+
+    number_simulations = settings[
+        "number_simulations"
+    ]
 
     if (
-        pd.isna(number_simulations)
-        or not float(number_simulations).is_integer()
+        not float(
+            number_simulations
+        ).is_integer()
         or number_simulations <= 0
     ):
         raise ValueError(
             "number_simulations must be a positive integer."
         )
 
-    seed = settings["seed"]
+    seed = settings[
+        "seed"
+    ]
 
     if (
-        pd.isna(seed)
-        or not float(seed).is_integer()
+        not float(
+            seed
+        ).is_integer()
         or seed < 0
     ):
         raise ValueError(
             "seed must be a non-negative integer."
         )
 
-    confidence_level = settings["confidence_level"]
+    confidence_level = settings[
+        "confidence_level"
+    ]
 
-    if (
-        pd.isna(confidence_level)
-        or not 0 < confidence_level < 1
+    if not (
+        0
+        < confidence_level
+        < 1
     ):
         raise ValueError(
             "confidence_level must be between zero and one."
         )
+
+    # -----------------------------
+    # Dependence model
+    # -----------------------------
 
     valid_dependence_models = {
         "independent",
@@ -324,30 +391,40 @@ def validate_model_settings(settings):
         "t_copula",
     }
 
-    dependence_model = str(
-        settings["dependence_model"]
-    ).strip().lower()
+    dependence_model = settings[
+        "dependence_model"
+    ]
 
-    if dependence_model not in valid_dependence_models:
+    if (
+        dependence_model
+        not in valid_dependence_models
+    ):
         raise ValueError(
             "dependence_model must be 'independent', "
             "'gaussian_copula', or 't_copula'."
         )
 
-    if dependence_model == "t_copula":
+    if (
+        dependence_model
+        == "t_copula"
+    ):
 
         t_degrees_of_freedom = settings[
             "t_degrees_of_freedom"
         ]
 
         if (
-            pd.isna(t_degrees_of_freedom)
-            or t_degrees_of_freedom <= 2
+            t_degrees_of_freedom
+            <= 2
         ):
             raise ValueError(
                 "t_degrees_of_freedom must be greater than two "
                 "when dependence_model is 't_copula'."
             )
+
+    # -----------------------------
+    # Factor model
+    # -----------------------------
 
     valid_factor_structures = {
         "single_factor",
@@ -356,11 +433,14 @@ def validate_model_settings(settings):
         "global_sector_region",
     }
 
-    factor_structure = str(
-        settings["factor_structure"]
-    ).strip().lower()
+    factor_structure = settings[
+        "factor_structure"
+    ]
 
-    if factor_structure not in valid_factor_structures:
+    if (
+        factor_structure
+        not in valid_factor_structures
+    ):
         raise ValueError(
             "factor_structure must be 'single_factor', "
             "'global_sector', 'global_region', or "
@@ -371,54 +451,68 @@ def validate_model_settings(settings):
         "factor_lookback_years"
     ]
 
-    if (
-        pd.isna(factor_lookback_years)
-        or factor_lookback_years <= 0
-    ):
+    if factor_lookback_years <= 0:
         raise ValueError(
             "factor_lookback_years must be greater than zero."
         )
 
+    # -----------------------------
+    # Currency and market data
+    # -----------------------------
+
     base_currency = str(
-        settings["base_currency"]
+        settings[
+            "base_currency"
+        ]
     ).strip().upper()
 
     if (
         not base_currency
-        or len(base_currency) != 3
+        or len(
+            base_currency
+        ) != 3
     ):
         raise ValueError(
             "base_currency must be a three-letter currency code."
         )
 
-    _validate_boolean_setting(
-        settings["create_excel_output"],
+    # Validate the requested market-data date.
+    parse_market_data_date(
+        settings[
+            "market_data_date"
+        ]
+    )
+
+    # -----------------------------
+    # Optional output settings
+    # -----------------------------
+
+    output_settings = [
         "create_excel_output",
-    )
-
-    _validate_boolean_setting(
-        settings["create_pdf_output"],
         "create_pdf_output",
-    )
-
-    _validate_boolean_setting(
-        settings["create_plot_files"],
         "create_plot_files",
-    )
+    ]
 
-    # output_folder is optional.
-    # Missing or blank values use the default project outputs folder.
-    if "output_folder" in settings:
+    for setting_name in output_settings:
 
-        output_folder = settings["output_folder"]
+        if setting_name not in settings:
+            continue
 
-        if (
-            pd.notna(output_folder)
-            and not isinstance(output_folder, str)
+        value = settings[
+            setting_name
+        ]
+
+        # Pandas may return Excel Boolean values as either
+        # Python bool or NumPy bool_ objects.
+        if not isinstance(
+            value,
+            (
+                bool,
+                np.bool_,
+            ),
         ):
             raise ValueError(
-                "output_folder must contain a folder path "
-                "or be left empty."
+                f"{setting_name} must be TRUE or FALSE."
             )
 
     return True
@@ -451,25 +545,38 @@ def validate_factor_proxies(factor_proxies):
         "sector",
     }
 
-    if not factor_proxies["factor_type"].isin(
-        valid_factor_types
-    ).all():
+    if not (
+        factor_proxies[
+            "factor_type"
+        ]
+        .isin(
+            valid_factor_types
+        )
+        .all()
+    ):
         raise ValueError(
             "factor_type must be 'global', 'region', or 'sector'."
         )
 
-    if factor_proxies["factor_name"].isna().any():
+    if factor_proxies[
+        "factor_name"
+    ].isna().any():
         raise ValueError(
             "factor_name must not be missing."
         )
 
-    if factor_proxies["ticker"].isna().any():
+    if factor_proxies[
+        "ticker"
+    ].isna().any():
         raise ValueError(
             "ticker must not be missing."
         )
 
     if factor_proxies.duplicated(
-        subset=["factor_type", "factor_name"]
+        subset=[
+            "factor_type",
+            "factor_name",
+        ]
     ).any():
         raise ValueError(
             "Each factor_type and factor_name combination "
@@ -480,11 +587,16 @@ def validate_factor_proxies(factor_proxies):
         factor_proxies[
             "factor_type"
         ]
-        .eq("global")
+        .eq(
+            "global"
+        )
         .sum()
     )
 
-    if number_global_factors != 1:
+    if (
+        number_global_factors
+        != 1
+    ):
         raise ValueError(
             "Exactly one global factor must be defined."
         )
@@ -493,7 +605,10 @@ def validate_factor_proxies(factor_proxies):
 
 
 # Validate fallback market-data snapshot.
-def validate_market_data(market_data, base_currency):
+def validate_market_data(
+    market_data,
+    base_currency,
+):
 
     required_columns = [
         "data_type",
@@ -523,45 +638,65 @@ def validate_market_data(market_data, base_currency):
         )
 
     data_types = (
-        market_data["data_type"]
+        market_data[
+            "data_type"
+        ]
         .astype(str)
         .str.strip()
         .str.lower()
     )
 
     currencies = (
-        market_data["currency"]
+        market_data[
+            "currency"
+        ]
         .astype(str)
         .str.strip()
         .str.upper()
     )
 
-    model_base_currency = str(
-        base_currency
-    ).strip().upper()
+    model_base_currency = (
+        str(
+            base_currency
+        )
+        .strip()
+        .upper()
+    )
 
     valid_data_types = {
         "fx",
         "risk_free",
     }
 
-    if not data_types.isin(
-        valid_data_types
-    ).all():
+    if not (
+        data_types
+        .isin(
+            valid_data_types
+        )
+        .all()
+    ):
         raise ValueError(
             "data_type must be either 'fx' or 'risk_free'."
         )
 
     if (
-        market_data["currency"].isna().any()
-        or currencies.eq("").any()
+        market_data[
+            "currency"
+        ]
+        .isna()
+        .any()
+        or currencies
+        .eq("")
+        .any()
     ):
         raise ValueError(
             "Currency must be provided for every market-data row."
         )
 
     numeric_values = pd.to_numeric(
-        market_data["value"],
+        market_data[
+            "value"
+        ],
         errors="coerce",
     )
 
@@ -570,13 +705,17 @@ def validate_market_data(market_data, base_currency):
             "Market-data values must be numeric."
         )
 
-    if market_data["as_of_date"].isna().any():
+    if market_data[
+        "as_of_date"
+    ].isna().any():
         raise ValueError(
             "as_of_date must be provided for every market-data row."
         )
 
     snapshot_dates = pd.to_datetime(
-        market_data["as_of_date"],
+        market_data[
+            "as_of_date"
+        ],
         errors="coerce",
     )
 
@@ -587,7 +726,8 @@ def validate_market_data(market_data, base_currency):
 
     if (
         snapshot_dates
-        .dt.normalize()
+        .dt
+        .normalize()
         .nunique()
         != 1
     ):
@@ -605,21 +745,35 @@ def validate_market_data(market_data, base_currency):
         == "risk_free"
     )
 
-    fx_data = market_data.loc[
-        fx_rows
-    ].copy()
+    fx_data = (
+        market_data
+        .loc[
+            fx_rows
+        ]
+        .copy()
+    )
 
-    risk_free_data = market_data.loc[
-        risk_free_rows
-    ].copy()
+    risk_free_data = (
+        market_data
+        .loc[
+            risk_free_rows
+        ]
+        .copy()
+    )
 
-    fx_currencies = currencies.loc[
-        fx_rows
-    ]
+    fx_currencies = (
+        currencies
+        .loc[
+            fx_rows
+        ]
+    )
 
-    risk_free_currencies = currencies.loc[
-        risk_free_rows
-    ]
+    risk_free_currencies = (
+        currencies
+        .loc[
+            risk_free_rows
+        ]
+    )
 
     # -----------------------------
     # FX fallback validation
@@ -631,40 +785,61 @@ def validate_market_data(market_data, base_currency):
         )
 
     fx_base_currencies = (
-        fx_data["base_currency"]
+        fx_data[
+            "base_currency"
+        ]
         .astype(str)
         .str.strip()
         .str.upper()
     )
 
     if (
-        fx_data["base_currency"].isna().any()
-        or fx_base_currencies.eq("").any()
+        fx_data[
+            "base_currency"
+        ]
+        .isna()
+        .any()
+        or fx_base_currencies
+        .eq("")
+        .any()
     ):
         raise ValueError(
             "base_currency must be provided for every FX row."
         )
 
     unique_snapshot_bases = (
-        fx_base_currencies.unique()
+        fx_base_currencies
+        .unique()
     )
 
-    if len(unique_snapshot_bases) != 1:
+    if (
+        len(
+            unique_snapshot_bases
+        )
+        != 1
+    ):
         raise ValueError(
             "All FX fallback rates must use the same "
             "snapshot reference currency."
         )
 
     snapshot_base_currency = (
-        unique_snapshot_bases[0]
+        unique_snapshot_bases[
+            0
+        ]
     )
 
     fx_values = pd.to_numeric(
-        fx_data["value"],
+        fx_data[
+            "value"
+        ],
         errors="coerce",
     )
 
-    if (fx_values <= 0).any():
+    if (
+        fx_values
+        <= 0
+    ).any():
         raise ValueError(
             "FX fallback rates must be strictly positive."
         )
@@ -674,7 +849,9 @@ def validate_market_data(market_data, base_currency):
             "Each currency may appear only once in FX fallback data."
         )
 
-    if fx_data["tenor_years"].notna().any():
+    if fx_data[
+        "tenor_years"
+    ].notna().any():
         raise ValueError(
             "FX fallback rows must not contain tenor_years."
         )
@@ -684,7 +861,12 @@ def validate_market_data(market_data, base_currency):
         == snapshot_base_currency
     ]
 
-    if len(snapshot_base_rows) != 1:
+    if (
+        len(
+            snapshot_base_rows
+        )
+        != 1
+    ):
         raise ValueError(
             "FX fallback data must contain exactly one row "
             "for the snapshot reference currency."
@@ -693,7 +875,9 @@ def validate_market_data(market_data, base_currency):
     snapshot_base_value = float(
         snapshot_base_rows[
             "value"
-        ].iloc[0]
+        ].iloc[
+            0
+        ]
     )
 
     if (
@@ -710,7 +894,9 @@ def validate_market_data(market_data, base_currency):
 
     if (
         model_base_currency
-        not in set(fx_currencies)
+        not in set(
+            fx_currencies
+        )
     ):
         raise ValueError(
             f"Model base currency '{model_base_currency}' "
@@ -728,7 +914,9 @@ def validate_market_data(market_data, base_currency):
 
     # Negative risk-free rates are allowed.
     risk_free_values = pd.to_numeric(
-        risk_free_data["value"],
+        risk_free_data[
+            "value"
+        ],
         errors="coerce",
     )
 
@@ -738,7 +926,9 @@ def validate_market_data(market_data, base_currency):
         )
 
     risk_free_tenors = pd.to_numeric(
-        risk_free_data["tenor_years"],
+        risk_free_data[
+            "tenor_years"
+        ],
         errors="coerce",
     )
 
@@ -747,7 +937,10 @@ def validate_market_data(market_data, base_currency):
             "Risk-free fallback rows must contain tenor_years."
         )
 
-    if (risk_free_tenors <= 0).any():
+    if (
+        risk_free_tenors
+        <= 0
+    ).any():
         raise ValueError(
             "Risk-free tenors must be strictly positive."
         )
@@ -755,6 +948,7 @@ def validate_market_data(market_data, base_currency):
     risk_free_keys = pd.DataFrame({
         "currency":
             risk_free_currencies.to_numpy(),
+
         "tenor_years":
             risk_free_tenors.to_numpy(),
     })
@@ -765,12 +959,16 @@ def validate_market_data(market_data, base_currency):
             "in risk-free fallback data."
         )
 
-    if risk_free_data["curve_type"].isna().any():
+    if risk_free_data[
+        "curve_type"
+    ].isna().any():
         raise ValueError(
             "curve_type must be provided for risk-free fallback data."
         )
 
-    if risk_free_data["source"].isna().any():
+    if risk_free_data[
+        "source"
+    ].isna().any():
         raise ValueError(
             "source must be provided for risk-free fallback data."
         )
@@ -782,7 +980,9 @@ def validate_market_data(market_data, base_currency):
 
 
 # Validate rating migration matrix and credit spreads.
-def validate_rating_migration_matrix(rating_migration_matrix):
+def validate_rating_migration_matrix(
+    rating_migration_matrix,
+):
 
     # Synthetic one-year rating transition matrix and spreads.
     # Values are for demonstration purposes only and do not
@@ -827,8 +1027,12 @@ def validate_rating_migration_matrix(rating_migration_matrix):
     )
 
     if (
-        set(current_ratings)
-        != set(rating_states)
+        set(
+            current_ratings
+        )
+        != set(
+            rating_states
+        )
     ):
         raise ValueError(
             "The migration matrix must contain exactly "
@@ -848,10 +1052,12 @@ def validate_rating_migration_matrix(rating_migration_matrix):
 
     if (
         (
-            transition_matrix < 0
+            transition_matrix
+            < 0
         )
         | (
-            transition_matrix > 1
+            transition_matrix
+            > 1
         )
     ).any().any():
         raise ValueError(
@@ -859,16 +1065,21 @@ def validate_rating_migration_matrix(rating_migration_matrix):
         )
 
     calculated_row_sums = (
-        transition_matrix.sum(
+        transition_matrix
+        .sum(
             axis=1
         )
     )
 
     if not (
         calculated_row_sums
-        .sub(1.0)
+        .sub(
+            1.0
+        )
         .abs()
-        .le(1e-8)
+        .le(
+            1e-8
+        )
         .all()
     ):
         raise ValueError(
@@ -913,7 +1124,9 @@ def validate_rating_migration_matrix(rating_migration_matrix):
 
     if not (
         spread_difference
-        .le(1e-10)
+        .le(
+            1e-10
+        )
         .all()
     ):
         raise ValueError(
@@ -938,8 +1151,12 @@ def validate_rating_migration_matrix(rating_migration_matrix):
     )
 
     if not (
-        ordered_spreads[1:]
-        > ordered_spreads[:-1]
+        ordered_spreads[
+            1:
+        ]
+        > ordered_spreads[
+            :-1
+        ]
     ).all():
         raise ValueError(
             "Credit spreads must increase as "
@@ -962,8 +1179,16 @@ def validate_rating_migration_matrix(rating_migration_matrix):
     ]
 
     if (
-        default_row["D"] != 1
-        or default_row.drop("D").sum() != 0
+        default_row[
+            "D"
+        ]
+        != 1
+        or default_row
+        .drop(
+            "D"
+        )
+        .sum()
+        != 0
     ):
         raise ValueError(
             "Default must be an absorbing state."

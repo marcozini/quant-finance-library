@@ -17,47 +17,229 @@ import requests
 # separate fallback tables for every currency pair.
 
 
-# Retrieve the latest ECB euro reference rates.
+# Normalize an optional market-data date.
+#
+# None or "latest" means that the latest available observation
+# should be used.
+def _normalize_market_data_date(market_data_date):
 
-def _get_ecb_reference_rates():
+    if market_data_date is None:
+        return None
 
-    url = (
-        "https://www.ecb.europa.eu/stats/eurofxref/"
-        "eurofxref-daily.xml"
-    )
+    if (
+        isinstance(market_data_date, str)
+        and market_data_date.strip().lower() == "latest"
+    ):
+        return None
 
-    response = requests.get(
-        url,
-        timeout=15,
-    )
-
-    response.raise_for_status()
-
-    root = ET.fromstring(
-        response.content
-    )
-
-    rates = {
-        "EUR": 1.0,
-    }
-
-    for element in root.iter():
-
-        currency = element.attrib.get(
-            "currency"
+    try:
+        normalized_date = pd.Timestamp(
+            market_data_date
         )
 
-        rate = element.attrib.get(
-            "rate"
+    except Exception as error:
+        raise ValueError(
+            "market_data_date must be 'latest' or a valid date."
+        ) from error
+
+    if pd.isna(normalized_date):
+        raise ValueError(
+            "market_data_date must be 'latest' or a valid date."
         )
 
-        if (
-            currency is not None
-            and rate is not None
-        ):
-            rates[
-                currency.upper()
-            ] = float(rate)
+    if normalized_date.tzinfo is not None:
+        normalized_date = (
+            normalized_date
+            .tz_localize(None)
+        )
+
+    return normalized_date.normalize()
+
+
+# Check that a fallback snapshot does not come after
+# an explicitly requested market-data date.
+def _validate_fallback_snapshot_date(
+    data,
+    market_data_date,
+):
+
+    requested_date = _normalize_market_data_date(
+        market_data_date
+    )
+
+    if requested_date is None:
+        return
+
+    if "as_of_date" not in data.columns:
+        raise ValueError(
+            "Fallback market data must contain as_of_date "
+            "when a specific market_data_date is requested."
+        )
+
+    snapshot_dates = pd.to_datetime(
+        data["as_of_date"],
+        errors="coerce",
+    )
+
+    if snapshot_dates.isna().any():
+        raise ValueError(
+            "Fallback market data contains an invalid as_of_date."
+        )
+
+    snapshot_dates = (
+        snapshot_dates
+        .dt
+        .normalize()
+    )
+
+    if snapshot_dates.nunique() != 1:
+        raise ValueError(
+            "Fallback market data must use one common as_of_date."
+        )
+
+    snapshot_date = snapshot_dates.iloc[0]
+
+    if snapshot_date > requested_date:
+        raise ValueError(
+            "Fallback market-data snapshot is later than the "
+            "requested market_data_date."
+        )
+
+
+# Retrieve ECB euro reference rates.
+#
+# If market_data_date is None, the latest published reference
+# rates are used.
+#
+# If a specific date is supplied, the historical ECB time series
+# is searched and the latest available observation on or before
+# that date is selected. This automatically handles weekends and
+# TARGET closing days.
+def _get_ecb_reference_rates(
+    market_data_date=None,
+):
+
+    requested_date = _normalize_market_data_date(
+        market_data_date
+    )
+
+    # Latest available ECB reference rates.
+    if requested_date is None:
+
+        url = (
+            "https://www.ecb.europa.eu/stats/eurofxref/"
+            "eurofxref-daily.xml"
+        )
+
+        response = requests.get(
+            url,
+            timeout=15,
+        )
+
+        response.raise_for_status()
+
+        root = ET.fromstring(
+            response.content
+        )
+
+        rates = {
+            "EUR": 1.0,
+        }
+
+        for element in root.iter():
+
+            currency = element.attrib.get(
+                "currency"
+            )
+
+            rate = element.attrib.get(
+                "rate"
+            )
+
+            if (
+                currency is not None
+                and rate is not None
+            ):
+                rates[
+                    currency.upper()
+                ] = float(rate)
+
+    # Historical ECB reference rates.
+    else:
+
+        url = (
+            "https://www.ecb.europa.eu/stats/eurofxref/"
+            "eurofxref-hist.xml"
+        )
+
+        response = requests.get(
+            url,
+            timeout=20,
+        )
+
+        response.raise_for_status()
+
+        root = ET.fromstring(
+            response.content
+        )
+
+        selected_element = None
+        selected_date = None
+
+        for element in root.iter():
+
+            time_value = element.attrib.get(
+                "time"
+            )
+
+            if time_value is None:
+                continue
+
+            try:
+                observation_date = pd.Timestamp(
+                    time_value
+                ).normalize()
+
+            except Exception:
+                continue
+
+            if observation_date > requested_date:
+                continue
+
+            if (
+                selected_date is None
+                or observation_date > selected_date
+            ):
+                selected_date = observation_date
+                selected_element = element
+
+        if selected_element is None:
+            raise ValueError(
+                "No ECB FX reference-rate observation is available "
+                "on or before the requested market_data_date."
+            )
+
+        rates = {
+            "EUR": 1.0,
+        }
+
+        for element in selected_element:
+
+            currency = element.attrib.get(
+                "currency"
+            )
+
+            rate = element.attrib.get(
+                "rate"
+            )
+
+            if (
+                currency is not None
+                and rate is not None
+            ):
+                rates[
+                    currency.upper()
+                ] = float(rate)
 
     if len(rates) <= 1:
         raise ValueError(
@@ -67,18 +249,20 @@ def _get_ecb_reference_rates():
     return rates
 
 
-# Calculate a live FX rate from local currency
+# Calculate an automatic FX rate from local currency
 # into the selected portfolio base currency.
-
 def _get_live_fx_rate(
     currency,
     base_currency,
+    market_data_date=None,
 ):
 
     if currency == base_currency:
         return 1.0
 
-    rates = _get_ecb_reference_rates()
+    rates = _get_ecb_reference_rates(
+        market_data_date=market_data_date,
+    )
 
     if currency not in rates:
         raise ValueError(
@@ -98,7 +282,6 @@ def _get_live_fx_rate(
     # local -> base
     # = base units / EUR
     #   divided by local units / EUR
-
     fx_rate = (
         rates[base_currency]
         / rates[currency]
@@ -113,11 +296,11 @@ def _get_live_fx_rate(
 
 
 # Retrieve an FX fallback cross-rate from the frozen snapshot.
-
 def _get_fallback_fx_rate(
     currency,
     base_currency,
     market_data,
+    market_data_date=None,
 ):
 
     if market_data is None:
@@ -181,9 +364,15 @@ def _get_fallback_fx_rate(
             "No FX fallback data available."
         )
 
+    # If a historical date was requested, do not allow
+    # a fallback snapshot from a later date.
+    _validate_fallback_snapshot_date(
+        data=fx_data,
+        market_data_date=market_data_date,
+    )
+
     # All stored fallback FX rates must share
     # the same reference currency.
-
     snapshot_bases = (
         fx_data[
             "base_currency_normalized"
@@ -201,7 +390,6 @@ def _get_fallback_fx_rate(
     snapshot_base = snapshot_bases[0]
 
     # Retrieve local currency -> snapshot reference.
-
     currency_rows = fx_data[
         fx_data["currency_normalized"]
         == currency
@@ -218,7 +406,6 @@ def _get_fallback_fx_rate(
     ].iloc[0]
 
     # Retrieve selected model base currency -> snapshot reference.
-
     base_rows = fx_data[
         fx_data["currency_normalized"]
         == base_currency
@@ -256,7 +443,6 @@ def _get_fallback_fx_rate(
     #
     # EUR -> USD
     # = (EUR -> CHF) / (USD -> CHF)
-
     fx_rate = (
         currency_to_snapshot
         / base_to_snapshot
@@ -275,12 +461,15 @@ def _get_fallback_fx_rate(
 #
 # Automatic ECB market data is attempted first.
 # The frozen Excel snapshot is used only if automatic retrieval fails.
-
+#
+# If market_data_date is specified, the latest available automatic
+# observation on or before that date is used.
 def get_fx_rate(
     currency,
     base_currency,
     market_data=None,
     return_source=False,
+    market_data_date=None,
 ):
 
     currency = str(
@@ -301,6 +490,10 @@ def get_fx_rate(
             "Base currency must not be empty."
         )
 
+    requested_date = _normalize_market_data_date(
+        market_data_date
+    )
+
     # No conversion is necessary for the selected base currency.
     if currency == base_currency:
 
@@ -311,10 +504,22 @@ def get_fx_rate(
 
         try:
 
-            rate = _get_live_fx_rate(
-                currency=currency,
-                base_currency=base_currency,
-            )
+            # Preserve the previous call signature when the
+            # latest observation is requested.
+            if requested_date is None:
+
+                rate = _get_live_fx_rate(
+                    currency=currency,
+                    base_currency=base_currency,
+                )
+
+            else:
+
+                rate = _get_live_fx_rate(
+                    currency=currency,
+                    base_currency=base_currency,
+                    market_data_date=requested_date,
+                )
 
             source = "automatic_market_data"
 
@@ -329,6 +534,7 @@ def get_fx_rate(
                     currency=currency,
                     base_currency=base_currency,
                     market_data=market_data,
+                    market_data_date=requested_date,
                 )
 
                 source = "fallback_snapshot"

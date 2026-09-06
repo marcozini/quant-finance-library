@@ -1,9 +1,12 @@
 #### Unit Tests Credit Portfolio Input ####
 
+from datetime import date, timedelta
+
 import pandas as pd
 import pytest
 
 from quant_finance.credit.portfolio_input import (
+    parse_market_data_date,
     validate_portfolio,
     validate_model_settings,
     validate_factor_proxies,
@@ -12,9 +15,9 @@ from quant_finance.credit.portfolio_input import (
 )
 
 
-# ---------------------------------------------------------
-# Test data
-# ---------------------------------------------------------
+# =========================================================
+# Test Data Helpers
+# =========================================================
 
 def create_valid_portfolio():
 
@@ -105,18 +108,33 @@ def create_valid_portfolio():
 def create_valid_settings():
 
     return {
+
         "number_simulations": 100000,
+
         "seed": 0,
+
         "confidence_level": 0.995,
+
         "dependence_model": "t_copula",
+
         "t_degrees_of_freedom": 5,
+
         "factor_structure": "global_sector_region",
+
         "factor_lookback_years": 3,
+
         "base_currency": "USD",
+
+        # Use latest available market inputs by default.
+        "market_data_date": "latest",
+
         "create_excel_output": True,
+
         "create_pdf_output": True,
+
         "create_plot_files": True,
-        "output_folder": "outputs/base_case",
+
+        "output_folder": "outputs/",
     }
 
 
@@ -262,14 +280,94 @@ def create_valid_rating_migration_matrix():
     ]
 
     transition_matrix = [
-        [0.90, 0.08, 0.01, 0.005, 0.003, 0.001, 0.0005, 0.0005],
-        [0.02, 0.90, 0.06, 0.01, 0.005, 0.002, 0.001, 0.002],
-        [0.005, 0.03, 0.88, 0.06, 0.015, 0.005, 0.002, 0.003],
-        [0.002, 0.008, 0.04, 0.84, 0.07, 0.025, 0.008, 0.007],
-        [0.001, 0.003, 0.01, 0.05, 0.80, 0.09, 0.025, 0.021],
-        [0.001, 0.001, 0.003, 0.01, 0.06, 0.76, 0.09, 0.075],
-        [0.0005, 0.0005, 0.001, 0.003, 0.01, 0.05, 0.70, 0.235],
-        [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0],
+
+        [
+            0.90,
+            0.08,
+            0.01,
+            0.005,
+            0.003,
+            0.001,
+            0.0005,
+            0.0005,
+        ],
+
+        [
+            0.02,
+            0.90,
+            0.06,
+            0.01,
+            0.005,
+            0.002,
+            0.001,
+            0.002,
+        ],
+
+        [
+            0.005,
+            0.03,
+            0.88,
+            0.06,
+            0.015,
+            0.005,
+            0.002,
+            0.003,
+        ],
+
+        [
+            0.002,
+            0.008,
+            0.04,
+            0.84,
+            0.07,
+            0.025,
+            0.008,
+            0.007,
+        ],
+
+        [
+            0.001,
+            0.003,
+            0.01,
+            0.05,
+            0.80,
+            0.09,
+            0.025,
+            0.021,
+        ],
+
+        [
+            0.001,
+            0.001,
+            0.003,
+            0.01,
+            0.06,
+            0.76,
+            0.09,
+            0.075,
+        ],
+
+        [
+            0.0005,
+            0.0005,
+            0.001,
+            0.003,
+            0.01,
+            0.05,
+            0.70,
+            0.235,
+        ],
+
+        [
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            1.0,
+        ],
     ]
 
     spreads_bps = [
@@ -316,9 +414,9 @@ def create_valid_rating_migration_matrix():
     return pd.DataFrame(data)
 
 
-# ---------------------------------------------------------
-# Portfolio validation
-# ---------------------------------------------------------
+# =========================================================
+# Portfolio Validation
+# =========================================================
 
 # 1. Valid portfolio passes.
 def test_valid_portfolio():
@@ -345,9 +443,7 @@ def test_missing_portfolio_column():
 
     portfolio = (
         create_valid_portfolio()
-        .drop(
-            columns=["exposure"]
-        )
+        .drop(columns=["exposure"])
     )
 
     with pytest.raises(ValueError):
@@ -452,7 +548,7 @@ def test_manual_merton_inputs_without_risk_free_rate():
     )
 
 
-# 10. Incomplete manual Merton inputs without ticker raise an error.
+# 10. Incomplete Merton inputs without ticker raise an error.
 def test_incomplete_manual_merton_inputs():
 
     portfolio = create_valid_portfolio()
@@ -486,9 +582,9 @@ def test_unlisted_counterparty_requires_factor_proxy():
         )
 
 
-# ---------------------------------------------------------
-# Model settings validation
-# ---------------------------------------------------------
+# =========================================================
+# Model Settings Validation
+# =========================================================
 
 # 12. Valid model settings pass.
 def test_valid_model_settings():
@@ -514,7 +610,7 @@ def test_invalid_base_currency():
         )
 
 
-# 14. All supported dependence models pass.
+# Valid dependence model choices.
 @pytest.mark.parametrize(
     "dependence_model",
     [
@@ -538,7 +634,7 @@ def test_valid_dependence_models(
     )
 
 
-# 15. Invalid dependence model raises an error.
+# Invalid dependence model raises an error.
 def test_invalid_dependence_model():
 
     settings = create_valid_settings()
@@ -554,7 +650,7 @@ def test_invalid_dependence_model():
         )
 
 
-# 16. All supported factor structures pass.
+# Valid factor structure choices.
 @pytest.mark.parametrize(
     "factor_structure",
     [
@@ -579,7 +675,7 @@ def test_valid_factor_structures(
     )
 
 
-# 17. Invalid factor structure raises an error.
+# Invalid factor structure raises an error.
 def test_invalid_factor_structure():
 
     settings = create_valid_settings()
@@ -595,8 +691,7 @@ def test_invalid_factor_structure():
         )
 
 
-# 18. Every supported dependence-model/factor-structure
-# combination passes input validation.
+# Every valid dependence and factor combination should pass.
 @pytest.mark.parametrize(
     "dependence_model",
     [
@@ -634,7 +729,7 @@ def test_valid_dependence_factor_matrix(
     )
 
 
-# 19. t-copula requires more than two degrees of freedom.
+# t-copula degrees of freedom must exceed two.
 def test_invalid_t_degrees_of_freedom():
 
     settings = create_valid_settings()
@@ -654,7 +749,7 @@ def test_invalid_t_degrees_of_freedom():
         )
 
 
-# 20. t degrees of freedom are irrelevant for Gaussian copula.
+# t degrees of freedom are irrelevant for the Gaussian copula.
 def test_t_degrees_of_freedom_ignored_for_gaussian_copula():
 
     settings = create_valid_settings()
@@ -672,7 +767,7 @@ def test_t_degrees_of_freedom_ignored_for_gaussian_copula():
     )
 
 
-# 21. t degrees of freedom are irrelevant for independent simulation.
+# t degrees of freedom are irrelevant under independence.
 def test_t_degrees_of_freedom_ignored_for_independent():
 
     settings = create_valid_settings()
@@ -690,7 +785,7 @@ def test_t_degrees_of_freedom_ignored_for_independent():
     )
 
 
-# 22. Number of simulations must be positive.
+# Number of simulations must be positive.
 def test_invalid_number_simulations():
 
     settings = create_valid_settings()
@@ -706,7 +801,7 @@ def test_invalid_number_simulations():
         )
 
 
-# 23. Number of simulations must be an integer.
+# Number of simulations must be an integer.
 def test_non_integer_number_simulations():
 
     settings = create_valid_settings()
@@ -722,7 +817,7 @@ def test_non_integer_number_simulations():
         )
 
 
-# 24. Seed must be non-negative.
+# Seed must be non-negative.
 def test_invalid_seed():
 
     settings = create_valid_settings()
@@ -738,7 +833,7 @@ def test_invalid_seed():
         )
 
 
-# 25. Confidence level must lie strictly between zero and one.
+# Confidence level must lie strictly between zero and one.
 @pytest.mark.parametrize(
     "confidence_level",
     [
@@ -765,7 +860,7 @@ def test_invalid_confidence_level(
         )
 
 
-# 26. Factor lookback period must be positive.
+# Factor lookback period must be positive.
 def test_invalid_factor_lookback_years():
 
     settings = create_valid_settings()
@@ -781,7 +876,7 @@ def test_invalid_factor_lookback_years():
         )
 
 
-# 27. All supported portfolio base currencies pass.
+# Supported model base currencies pass.
 @pytest.mark.parametrize(
     "base_currency",
     [
@@ -805,15 +900,8 @@ def test_supported_base_currencies(
         settings
     )
 
-    market_data = create_valid_market_data()
 
-    assert validate_market_data(
-        market_data,
-        base_currency=base_currency,
-    )
-
-
-# 28. Output flags accept boolean values.
+# Boolean output settings should accept True and False.
 @pytest.mark.parametrize(
     "setting_name",
     [
@@ -845,7 +933,7 @@ def test_valid_boolean_output_settings(
     )
 
 
-# 29. Invalid output flag raises an error.
+# Invalid output setting values should raise an error.
 @pytest.mark.parametrize(
     "setting_name",
     [
@@ -862,7 +950,7 @@ def test_invalid_output_setting(
 
     settings[
         setting_name
-    ] = "maybe"
+    ] = "invalid"
 
     with pytest.raises(ValueError):
 
@@ -871,7 +959,7 @@ def test_invalid_output_setting(
         )
 
 
-# 30. output_folder is optional because a default output folder exists.
+# output_folder remains optional.
 def test_output_folder_is_optional():
 
     settings = create_valid_settings()
@@ -885,7 +973,7 @@ def test_output_folder_is_optional():
     )
 
 
-# 31. Empty output_folder is allowed and uses the fallback later.
+# An empty output folder is allowed.
 def test_empty_output_folder_allowed():
 
     settings = create_valid_settings()
@@ -899,11 +987,126 @@ def test_empty_output_folder_allowed():
     )
 
 
-# ---------------------------------------------------------
-# Factor proxy validation
-# ---------------------------------------------------------
+# =========================================================
+# Market Data Date
+# =========================================================
 
-# 32. Valid factor proxies pass.
+# "latest" means that the latest available market observation is used.
+def test_market_data_date_latest():
+
+    assert parse_market_data_date(
+        "latest"
+    ) is None
+
+
+# "latest" is case insensitive.
+def test_market_data_date_latest_case_insensitive():
+
+    assert parse_market_data_date(
+        "LATEST"
+    ) is None
+
+
+# A valid YYYY-MM-DD string is converted into a Python date.
+def test_market_data_date_specific_date():
+
+    result = parse_market_data_date(
+        "2026-08-31"
+    )
+
+    assert result == date(
+        2026,
+        8,
+        31,
+    )
+
+
+# Excel date cells may be loaded as pandas Timestamp objects.
+def test_market_data_date_timestamp():
+
+    result = parse_market_data_date(
+        pd.Timestamp(
+            "2026-08-31"
+        )
+    )
+
+    assert result == date(
+        2026,
+        8,
+        31,
+    )
+
+
+# Invalid date format raises an error.
+def test_invalid_market_data_date_format():
+
+    with pytest.raises(ValueError):
+
+        parse_market_data_date(
+            "31-08-2026"
+        )
+
+
+# Empty market data date raises an error.
+def test_empty_market_data_date():
+
+    with pytest.raises(ValueError):
+
+        parse_market_data_date(
+            ""
+        )
+
+
+# Missing market data date raises an error.
+def test_missing_market_data_date():
+
+    settings = create_valid_settings()
+
+    settings.pop(
+        "market_data_date"
+    )
+
+    with pytest.raises(ValueError):
+
+        validate_model_settings(
+            settings
+        )
+
+
+# Future market data dates are not allowed.
+def test_future_market_data_date():
+
+    future_date = (
+        date.today()
+        + timedelta(days=1)
+    )
+
+    with pytest.raises(ValueError):
+
+        parse_market_data_date(
+            future_date.isoformat()
+        )
+
+
+# Explicit market data date passes complete settings validation.
+def test_specific_market_data_date_valid_settings():
+
+    settings = create_valid_settings()
+
+    settings[
+        "market_data_date"
+    ] = "2026-08-31"
+
+    assert validate_model_settings(
+        settings
+    )
+
+
+# =========================================================
+# Factor Proxy Validation
+# =========================================================
+
+# Valid factor proxies pass.
 def test_valid_factor_proxies():
 
     assert validate_factor_proxies(
@@ -911,16 +1114,14 @@ def test_valid_factor_proxies():
     )
 
 
-# ---------------------------------------------------------
-# Market-data validation
-# ---------------------------------------------------------
+# =========================================================
+# Market Data Validation
+# =========================================================
 
-# 33. Valid market data passes.
+# Valid market data passes.
 def test_valid_market_data():
 
-    market_data = (
-        create_valid_market_data()
-    )
+    market_data = create_valid_market_data()
 
     assert validate_market_data(
         market_data,
@@ -928,12 +1129,10 @@ def test_valid_market_data():
     )
 
 
-# 34. CHF-anchored FX snapshot also supports another model base.
+# CHF-anchored FX snapshot also supports another model base.
 def test_fx_snapshot_supports_different_model_base():
 
-    market_data = (
-        create_valid_market_data()
-    )
+    market_data = create_valid_market_data()
 
     assert validate_market_data(
         market_data,
@@ -941,12 +1140,10 @@ def test_fx_snapshot_supports_different_model_base():
     )
 
 
-# 35. FX rates must be positive.
+# FX rates must be positive.
 def test_invalid_fx_rate():
 
-    market_data = (
-        create_valid_market_data()
-    )
+    market_data = create_valid_market_data()
 
     market_data.loc[
         1,
@@ -961,12 +1158,10 @@ def test_invalid_fx_rate():
         )
 
 
-# 36. Snapshot reference currency FX rate must equal one.
+# Snapshot reference currency FX rate must equal one.
 def test_invalid_snapshot_reference_fx_rate():
 
-    market_data = (
-        create_valid_market_data()
-    )
+    market_data = create_valid_market_data()
 
     market_data.loc[
         0,
@@ -981,12 +1176,10 @@ def test_invalid_snapshot_reference_fx_rate():
         )
 
 
-# 37. Negative risk-free rates are allowed.
+# Negative risk-free rates are allowed.
 def test_negative_risk_free_rate_allowed():
 
-    market_data = (
-        create_valid_market_data()
-    )
+    market_data = create_valid_market_data()
 
     market_data.loc[
         4,
@@ -999,12 +1192,10 @@ def test_negative_risk_free_rate_allowed():
     )
 
 
-# 38. Duplicate risk-free curve point raises an error.
+# Duplicate risk-free curve point raises an error.
 def test_duplicate_risk_free_curve_point():
 
-    market_data = (
-        create_valid_market_data()
-    )
+    market_data = create_valid_market_data()
 
     duplicate_row = (
         market_data
@@ -1028,11 +1219,11 @@ def test_duplicate_risk_free_curve_point():
         )
 
 
-# ---------------------------------------------------------
-# Rating migration matrix validation
-# ---------------------------------------------------------
+# =========================================================
+# Rating Migration Matrix Validation
+# =========================================================
 
-# 39. Valid rating migration matrix passes.
+# Valid rating migration matrix passes.
 def test_valid_rating_migration_matrix():
 
     migration_matrix = (

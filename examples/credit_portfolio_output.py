@@ -10,64 +10,100 @@ from openpyxl import load_workbook
 from openpyxl.drawing.image import Image
 from openpyxl.styles import Alignment, Font, PatternFill
 
-from quant_finance.credit.portfolio_model import run_credit_portfolio_model
-from credit_portfolio_report import create_credit_portfolio_report
-
-
-# ---------------------------------------------------------
-# Project paths
-# ---------------------------------------------------------
-
-PROJECT_ROOT = Path(__file__).resolve().parents[1]
-
-FILE_PATH = (
-    PROJECT_ROOT
-    / "data"
-    / "credit_risk_input.xlsx"
+from quant_finance.credit.portfolio_model import (
+    run_credit_portfolio_model,
 )
 
-DEFAULT_OUTPUT_FOLDER = (
-    PROJECT_ROOT
-    / "outputs"
+from credit_portfolio_report import (
+    create_credit_portfolio_report,
 )
 
 
-# ---------------------------------------------------------
-# Output file names
-# ---------------------------------------------------------
+FILE_PATH = "data/credit_risk_input.xlsx"
 
-OUTPUT_EXCEL_NAME = "credit_portfolio_results.xlsx"
-OUTPUT_PDF_NAME = "credit_portfolio_report.pdf"
+OUTPUT_DIR = Path("outputs")
 
-LOSS_DISTRIBUTION_NAME = "credit_loss_distribution.png"
-TAIL_DISTRIBUTION_NAME = "credit_loss_distribution_tail.png"
-EXPOSURE_PLOT_NAME = "credit_exposure_concentration.png"
-RISK_CONTRIBUTION_NAME = "credit_risk_contributions.png"
-PD_PLOT_NAME = "credit_pd_overview.png"
+OUTPUT_EXCEL = (
+    OUTPUT_DIR
+    / "credit_portfolio_results.xlsx"
+)
+
+OUTPUT_PDF = (
+    OUTPUT_DIR
+    / "credit_portfolio_report.pdf"
+)
+
+LOSS_DISTRIBUTION_PLOT = (
+    OUTPUT_DIR
+    / "credit_loss_distribution.png"
+)
+
+TAIL_DISTRIBUTION_PLOT = (
+    OUTPUT_DIR
+    / "credit_loss_distribution_tail.png"
+)
+
+EXPOSURE_PLOT = (
+    OUTPUT_DIR
+    / "credit_exposure_concentration.png"
+)
+
+RISK_CONTRIBUTION_PLOT = (
+    OUTPUT_DIR
+    / "credit_risk_contributions.png"
+)
+
+PD_PLOT = (
+    OUTPUT_DIR
+    / "credit_pd_overview.png"
+)
+
+PLOT_FILES = [
+    LOSS_DISTRIBUTION_PLOT,
+    TAIL_DISTRIBUTION_PLOT,
+    EXPOSURE_PLOT,
+    RISK_CONTRIBUTION_PLOT,
+    PD_PLOT,
+]
 
 
-# ---------------------------------------------------------
-# Output steering
-# ---------------------------------------------------------
+# Read a boolean output setting from the central steering file.
+def get_output_flag(
+    settings,
+    setting_name,
+):
 
-# Read a TRUE/FALSE-style output setting.
-def get_output_flag(settings, setting_name):
+    value = settings[
+        setting_name
+    ]
 
-    value = settings[setting_name]
-
-    if isinstance(value, bool):
+    if isinstance(
+        value,
+        bool,
+    ):
         return value
 
-    if (
-        isinstance(value, (int, float))
-        and not pd.isna(value)
-        and value in {0, 1}
+    if isinstance(
+        value,
+        (
+            int,
+            float,
+        ),
     ):
-        return bool(value)
+        return bool(
+            value
+        )
 
-    if isinstance(value, str):
+    if isinstance(
+        value,
+        str,
+    ):
 
-        value = value.strip().lower()
+        value = (
+            value
+            .strip()
+            .lower()
+        )
 
         if value in {
             "true",
@@ -84,144 +120,15 @@ def get_output_flag(settings, setting_name):
             return False
 
     raise ValueError(
-        f"Model setting '{setting_name}' must be TRUE or FALSE."
+        f"Model setting '{setting_name}' "
+        f"must be TRUE or FALSE."
     )
 
-
-# Remove matching quotation marks around a path.
-def clean_output_path_value(value):
-
-    value = str(value).strip()
-
-    if (
-        len(value) >= 2
-        and value[0] == value[-1]
-        and value[0] in {'"', "'"}
-    ):
-        value = value[1:-1].strip()
-
-    return value
-
-
-# Resolve and create the requested output directory.
-#
-# Relative paths are interpreted from the project root.
-# Both Windows and Unix-style separators are accepted.
-# Surrounding single or double quotation marks are accepted.
-# Missing or blank values use the default project outputs folder.
-def get_output_folder(settings):
-
-    value = settings.get(
-        "output_folder"
-    )
-
-    if (
-        value is None
-        or pd.isna(value)
-        or str(value).strip() == ""
-    ):
-        output_folder = DEFAULT_OUTPUT_FOLDER
-
-    else:
-
-        value = clean_output_path_value(
-            value
-        )
-
-        # A value containing only quotation marks or whitespace
-        # is treated like an empty setting.
-        if not value:
-            output_folder = DEFAULT_OUTPUT_FOLDER
-
-        else:
-
-            # Accept either path separator style.
-            #
-            # Windows accepts forward slashes as well, so converting
-            # backslashes gives us one consistent representation.
-            value = value.replace(
-                "\\",
-                "/",
-            )
-
-            output_folder = Path(
-                value
-            ).expanduser()
-
-            # Relative paths are anchored at the project root.
-            if not output_folder.is_absolute():
-
-                output_folder = (
-                    PROJECT_ROOT
-                    / output_folder
-                )
-
-    try:
-
-        output_folder.mkdir(
-            parents=True,
-            exist_ok=True,
-        )
-
-    except OSError as exc:
-
-        raise ValueError(
-            f"Could not create output folder "
-            f"'{output_folder}'. Check that the path is valid "
-            f"and that you have permission to write there."
-        ) from exc
-
-    if not output_folder.is_dir():
-        raise ValueError(
-            f"Output path '{output_folder}' is not a directory."
-        )
-
-    return output_folder.resolve()
-
-
-# Construct all output paths.
-def get_output_paths(output_folder):
-
-    return {
-        "excel":
-            output_folder
-            / OUTPUT_EXCEL_NAME,
-
-        "pdf":
-            output_folder
-            / OUTPUT_PDF_NAME,
-
-        "loss_distribution":
-            output_folder
-            / LOSS_DISTRIBUTION_NAME,
-
-        "tail_distribution":
-            output_folder
-            / TAIL_DISTRIBUTION_NAME,
-
-        "exposure":
-            output_folder
-            / EXPOSURE_PLOT_NAME,
-
-        "risk_contribution":
-            output_folder
-            / RISK_CONTRIBUTION_NAME,
-
-        "pd":
-            output_folder
-            / PD_PLOT_NAME,
-    }
-
-
-# ---------------------------------------------------------
-# Portfolio plots
-# ---------------------------------------------------------
 
 # Plot the complete simulated portfolio loss distribution.
 def create_loss_distribution_plot(
     portfolio_losses,
     summary,
-    output_path,
 ):
 
     mean_loss = summary[
@@ -245,7 +152,10 @@ def create_loss_distribution_plot(
     ]
 
     plt.figure(
-        figsize=(10, 6)
+        figsize=(
+            10,
+            6,
+        )
     )
 
     plt.hist(
@@ -257,19 +167,28 @@ def create_loss_distribution_plot(
     plt.axvline(
         mean_loss,
         linestyle="--",
-        label=f"Mean loss: {mean_loss:.2f}",
+        label=(
+            f"Mean loss: "
+            f"{mean_loss:.2f}"
+        ),
     )
 
     plt.axvline(
         var,
         linestyle="--",
-        label=f"{confidence:.1%} VaR: {var:.2f}",
+        label=(
+            f"{confidence:.1%} VaR: "
+            f"{var:.2f}"
+        ),
     )
 
     plt.axvline(
         es,
         linestyle=":",
-        label=f"{confidence:.1%} ES: {es:.2f}",
+        label=(
+            f"{confidence:.1%} ES: "
+            f"{es:.2f}"
+        ),
     )
 
     plt.title(
@@ -277,7 +196,8 @@ def create_loss_distribution_plot(
     )
 
     plt.xlabel(
-        f"Portfolio loss ({base_currency})"
+        f"Portfolio loss "
+        f"({base_currency})"
     )
 
     plt.ylabel(
@@ -285,10 +205,11 @@ def create_loss_distribution_plot(
     )
 
     plt.legend()
+
     plt.tight_layout()
 
     plt.savefig(
-        output_path,
+        LOSS_DISTRIBUTION_PLOT,
         dpi=200,
     )
 
@@ -300,7 +221,6 @@ def create_tail_loss_distribution_plot(
     portfolio_losses,
     portfolio,
     summary,
-    output_path,
 ):
 
     var = summary[
@@ -319,14 +239,18 @@ def create_tail_loss_distribution_plot(
         "base_currency"
     ]
 
-    # Largest deterministic single-counterparty default loss.
     default_losses = (
-        portfolio["exposure_base"]
-        * portfolio["lgd"]
+        portfolio[
+            "exposure_base"
+        ]
+        * portfolio[
+            "lgd"
+        ]
     )
 
     largest_index = (
-        default_losses.idxmax()
+        default_losses
+        .idxmax()
     )
 
     largest_default_loss = float(
@@ -335,10 +259,12 @@ def create_tail_loss_distribution_plot(
         ]
     )
 
-    largest_counterparty = portfolio.loc[
-        largest_index,
-        "counterparty",
-    ]
+    largest_counterparty = (
+        portfolio.loc[
+            largest_index,
+            "counterparty",
+        ]
+    )
 
     tail_start = max(
         0,
@@ -346,7 +272,8 @@ def create_tail_loss_distribution_plot(
     )
 
     tail_end = max(
-        largest_default_loss * 1.25,
+        largest_default_loss
+        * 1.25,
         es * 1.50,
     )
 
@@ -359,13 +286,24 @@ def create_tail_loss_distribution_plot(
         ),
     )
 
-    tail_losses = portfolio_losses[
-        (portfolio_losses >= tail_start)
-        & (portfolio_losses <= tail_end)
-    ]
+    tail_losses = (
+        portfolio_losses[
+            (
+                portfolio_losses
+                >= tail_start
+            )
+            & (
+                portfolio_losses
+                <= tail_end
+            )
+        ]
+    )
 
     plt.figure(
-        figsize=(10, 6)
+        figsize=(
+            10,
+            6,
+        )
     )
 
     plt.hist(
@@ -377,20 +315,27 @@ def create_tail_loss_distribution_plot(
     plt.axvline(
         var,
         linestyle="--",
-        label=f"{confidence:.1%} VaR: {var:.2f}",
+        label=(
+            f"{confidence:.1%} VaR: "
+            f"{var:.2f}"
+        ),
     )
 
     plt.axvline(
         es,
         linestyle=":",
-        label=f"{confidence:.1%} ES: {es:.2f}",
+        label=(
+            f"{confidence:.1%} ES: "
+            f"{es:.2f}"
+        ),
     )
 
     plt.axvline(
         largest_default_loss,
         linestyle="-.",
         label=(
-            f"{largest_counterparty} default loss: "
+            f"{largest_counterparty} "
+            f"default loss: "
             f"{largest_default_loss:.2f}"
         ),
     )
@@ -401,11 +346,13 @@ def create_tail_loss_distribution_plot(
     )
 
     plt.title(
-        "Simulated Credit Portfolio Loss Distribution — Tail View"
+        "Simulated Credit Portfolio Loss Distribution "
+        "— Tail View"
     )
 
     plt.xlabel(
-        f"Portfolio loss ({base_currency})"
+        f"Portfolio loss "
+        f"({base_currency})"
     )
 
     plt.ylabel(
@@ -413,21 +360,21 @@ def create_tail_loss_distribution_plot(
     )
 
     plt.legend()
+
     plt.tight_layout()
 
     plt.savefig(
-        output_path,
+        TAIL_DISTRIBUTION_PLOT,
         dpi=200,
     )
 
     plt.close()
 
 
-# Plot complete portfolio exposure concentration.
+# Plot portfolio exposure concentration in base currency.
 def create_exposure_plot(
     portfolio,
     base_currency,
-    output_path,
 ):
 
     plot_data = (
@@ -439,12 +386,19 @@ def create_exposure_plot(
     )
 
     plt.figure(
-        figsize=(10, 6)
+        figsize=(
+            10,
+            6,
+        )
     )
 
     plt.bar(
-        plot_data["counterparty"],
-        plot_data["exposure_base"],
+        plot_data[
+            "counterparty"
+        ],
+        plot_data[
+            "exposure_base"
+        ],
     )
 
     plt.title(
@@ -456,7 +410,8 @@ def create_exposure_plot(
     )
 
     plt.ylabel(
-        f"Exposure ({base_currency})"
+        f"Exposure "
+        f"({base_currency})"
     )
 
     plt.xticks(
@@ -467,7 +422,7 @@ def create_exposure_plot(
     plt.tight_layout()
 
     plt.savefig(
-        output_path,
+        EXPOSURE_PLOT,
         dpi=200,
     )
 
@@ -479,7 +434,6 @@ def create_risk_contribution_plot(
     portfolio,
     confidence,
     base_currency,
-    output_path,
 ):
 
     plot_data = (
@@ -491,27 +445,44 @@ def create_risk_contribution_plot(
     )
 
     positions = np.arange(
-        len(plot_data)
+        len(
+            plot_data
+        )
     )
 
     width = 0.38
 
     plt.figure(
-        figsize=(11, 6)
+        figsize=(
+            11,
+            6,
+        )
     )
 
     plt.bar(
-        positions - width / 2,
-        plot_data["incremental_var"],
+        positions
+        - width / 2,
+        plot_data[
+            "incremental_var"
+        ],
         width,
-        label=f"Incremental {confidence:.1%} VaR",
+        label=(
+            f"Incremental "
+            f"{confidence:.1%} VaR"
+        ),
     )
 
     plt.bar(
-        positions + width / 2,
-        plot_data["incremental_es"],
+        positions
+        + width / 2,
+        plot_data[
+            "incremental_es"
+        ],
         width,
-        label=f"Incremental {confidence:.1%} ES",
+        label=(
+            f"Incremental "
+            f"{confidence:.1%} ES"
+        ),
     )
 
     plt.title(
@@ -523,21 +494,25 @@ def create_risk_contribution_plot(
     )
 
     plt.ylabel(
-        f"Risk contribution ({base_currency})"
+        f"Risk contribution "
+        f"({base_currency})"
     )
 
     plt.xticks(
         positions,
-        plot_data["counterparty"],
+        plot_data[
+            "counterparty"
+        ],
         rotation=45,
         ha="right",
     )
 
     plt.legend()
+
     plt.tight_layout()
 
     plt.savefig(
-        output_path,
+        RISK_CONTRIBUTION_PLOT,
         dpi=200,
     )
 
@@ -547,7 +522,6 @@ def create_risk_contribution_plot(
 # Plot counterparty probabilities of default.
 def create_pd_plot(
     portfolio,
-    output_path,
 ):
 
     plot_data = (
@@ -559,21 +533,32 @@ def create_pd_plot(
         .copy()
     )
 
-    # Avoid zero values on logarithmic axis.
-    plot_data["pd_plot"] = (
-        plot_data["pd"]
+    # Avoid zero values on the logarithmic axis.
+    plot_data[
+        "pd_plot"
+    ] = (
+        plot_data[
+            "pd"
+        ]
         .clip(
             lower=1e-15
         )
     )
 
     plt.figure(
-        figsize=(10, 6)
+        figsize=(
+            10,
+            6,
+        )
     )
 
     plt.bar(
-        plot_data["counterparty"],
-        plot_data["pd_plot"],
+        plot_data[
+            "counterparty"
+        ],
+        plot_data[
+            "pd_plot"
+        ],
     )
 
     plt.yscale(
@@ -600,19 +585,19 @@ def create_pd_plot(
     plt.tight_layout()
 
     plt.savefig(
-        output_path,
+        PD_PLOT,
         dpi=200,
     )
 
     plt.close()
 
 
-# Create all charts required by the selected outputs.
+# Create all charts required for Excel, PDF
+# and optional PNG output.
 def create_plots(
     portfolio_losses,
     portfolio,
     summary,
-    output_paths,
 ):
 
     confidence = summary[
@@ -626,51 +611,34 @@ def create_plots(
     create_loss_distribution_plot(
         portfolio_losses,
         summary,
-        output_paths[
-            "loss_distribution"
-        ],
     )
 
     create_tail_loss_distribution_plot(
         portfolio_losses,
         portfolio,
         summary,
-        output_paths[
-            "tail_distribution"
-        ],
     )
 
     create_exposure_plot(
         portfolio,
         base_currency,
-        output_paths[
-            "exposure"
-        ],
     )
 
     create_risk_contribution_plot(
         portfolio,
         confidence,
         base_currency,
-        output_paths[
-            "risk_contribution"
-        ],
     )
 
     create_pd_plot(
         portfolio,
-        output_paths[
-            "pd"
-        ],
     )
 
 
-# ---------------------------------------------------------
-# Excel formatting
-# ---------------------------------------------------------
-
 # Format worksheet headers.
-def format_sheet_headers(sheet):
+def format_sheet_headers(
+    sheet,
+):
 
     header_fill = PatternFill(
         fill_type="solid",
@@ -684,14 +652,18 @@ def format_sheet_headers(sheet):
             color="FFFFFF",
         )
 
-        cell.fill = header_fill
+        cell.fill = (
+            header_fill
+        )
 
         cell.alignment = Alignment(
             horizontal="center",
             vertical="center",
         )
 
-    sheet.freeze_panes = "A2"
+    sheet.freeze_panes = (
+        "A2"
+    )
 
 
 # Automatically size worksheet columns.
@@ -703,14 +675,27 @@ def autosize_columns(
     for column in sheet.columns:
 
         letter = (
-            column[0].column_letter
+            column[
+                0
+            ]
+            .column_letter
         )
 
         max_length = max(
-            len(str(cell.value))
-            if cell.value is not None
-            else 0
-            for cell in column[:100]
+            (
+                len(
+                    str(
+                        cell.value
+                    )
+                )
+                if cell.value
+                is not None
+                else 0
+            )
+            for cell
+            in column[
+                :100
+            ]
         )
 
         sheet.column_dimensions[
@@ -721,7 +706,7 @@ def autosize_columns(
         )
 
 
-# Apply number format to selected columns.
+# Format selected columns based on their header names.
 def format_columns_by_header(
     sheet,
     headers,
@@ -731,12 +716,16 @@ def format_columns_by_header(
     header_map = {
         cell.value:
             cell.column
-        for cell in sheet[1]
+        for cell
+        in sheet[1]
     }
 
     for header in headers:
 
-        if header not in header_map:
+        if (
+            header
+            not in header_map
+        ):
             continue
 
         column_index = (
@@ -759,16 +748,15 @@ def format_columns_by_header(
 
 
 # Format final Excel workbook and embed plots.
-def format_excel_output(
-    output_excel,
-    output_paths,
-):
+def format_excel_output():
 
     workbook = load_workbook(
-        output_excel
+        OUTPUT_EXCEL
     )
 
-    for sheet_name in workbook.sheetnames:
+    for sheet_name in (
+        workbook.sheetnames
+    ):
 
         sheet = workbook[
             sheet_name
@@ -782,6 +770,7 @@ def format_excel_output(
             sheet
         )
 
+    # Portfolio summary dashboard.
     summary_sheet = workbook[
         "portfolio_summary"
     ]
@@ -795,9 +784,7 @@ def format_excel_output(
     ].width = 22
 
     loss_image = Image(
-        output_paths[
-            "loss_distribution"
-        ]
+        LOSS_DISTRIBUTION_PLOT
     )
 
     loss_image.width = 650
@@ -809,9 +796,7 @@ def format_excel_output(
     )
 
     tail_image = Image(
-        output_paths[
-            "tail_distribution"
-        ]
+        TAIL_DISTRIBUTION_PLOT
     )
 
     tail_image.width = 650
@@ -823,9 +808,7 @@ def format_excel_output(
     )
 
     exposure_image = Image(
-        output_paths[
-            "exposure"
-        ]
+        EXPOSURE_PLOT
     )
 
     exposure_image.width = 650
@@ -837,9 +820,7 @@ def format_excel_output(
     )
 
     risk_image = Image(
-        output_paths[
-            "risk_contribution"
-        ]
+        RISK_CONTRIBUTION_PLOT
     )
 
     risk_image.width = 650
@@ -851,9 +832,7 @@ def format_excel_output(
     )
 
     pd_image = Image(
-        output_paths[
-            "pd"
-        ]
+        PD_PLOT
     )
 
     pd_image.width = 650
@@ -864,6 +843,7 @@ def format_excel_output(
         "D46",
     )
 
+    # Counterparty results formatting.
     counterparty_sheet = workbook[
         "counterparty_results"
     ]
@@ -921,6 +901,7 @@ def format_excel_output(
         "0.000000",
     )
 
+    # Model notes formatting.
     notes_sheet = workbook[
         "model_notes"
     ]
@@ -939,19 +920,17 @@ def format_excel_output(
         max_col=2,
     ):
 
-        row[0].alignment = Alignment(
+        row[
+            0
+        ].alignment = Alignment(
             wrap_text=True,
             vertical="top",
         )
 
     workbook.save(
-        output_excel
+        OUTPUT_EXCEL
     )
 
-
-# ---------------------------------------------------------
-# Excel output
-# ---------------------------------------------------------
 
 # Create the detailed Excel model output.
 def create_excel_output(
@@ -962,8 +941,6 @@ def create_excel_output(
     market_data,
     portfolio_losses,
     summary,
-    output_excel,
-    output_paths,
 ):
 
     confidence = summary[
@@ -974,6 +951,7 @@ def create_excel_output(
         "base_currency"
     ]
 
+    # Portfolio summary.
     summary_df = pd.DataFrame({
 
         "metric": [
@@ -983,7 +961,10 @@ def create_excel_output(
             "Default expected loss",
             "Migration mean loss",
             f"{confidence:.1%} VaR",
-            f"{confidence:.1%} Expected Shortfall",
+            (
+                f"{confidence:.1%} "
+                f"Expected Shortfall"
+            ),
             "Unexpected loss",
             "Maximum simulated loss",
             "Minimum simulated loss",
@@ -991,7 +972,9 @@ def create_excel_output(
 
         "value": [
             base_currency,
-            len(portfolio),
+            len(
+                portfolio
+            ),
             portfolio[
                 "exposure_base"
             ].sum(),
@@ -1019,45 +1002,60 @@ def create_excel_output(
         ],
     })
 
+    # Counterparty-level results.
     counterparty_columns = [
         "counterparty",
         "ticker",
         "factor_loading_proxy_ticker",
+
         "sector",
         "region",
+
         "pd_method",
         "rating",
+
         "exposure_local",
         "currency",
         "fx_rate_to_base",
         "fx_rate_source",
         "exposure_base",
+
         "lgd",
+
         "pd",
         "pd_source",
         "expected_loss",
+
         "equity_value",
         "equity_volatility",
         "debt",
         "asset_value",
         "asset_volatility",
+
         "risk_free_rate",
         "risk_free_rate_source",
+
         "maturity",
         "coupon_rate",
         "payment_frequency",
+
         "factor_calibration_ticker",
         "factor_source",
+
         "global_loading",
         "region_loading",
         "sector_loading",
         "idiosyncratic_loading",
+
         "incremental_var",
         "incremental_es",
+
         "marginal_var",
         "marginal_es",
+
         "standalone_var",
         "standalone_es",
+
         "var_diversification_benefit",
         "es_diversification_benefit",
     ]
@@ -1070,13 +1068,17 @@ def create_excel_output(
     )
 
     counterparty_results.insert(
-        counterparty_results.columns.get_loc(
+        counterparty_results
+        .columns
+        .get_loc(
             "exposure_base"
-        ) + 1,
+        )
+        + 1,
         "base_currency",
         base_currency,
     )
 
+    # Model settings.
     settings_df = pd.DataFrame(
         settings.items(),
         columns=[
@@ -1085,6 +1087,7 @@ def create_excel_output(
         ],
     )
 
+    # Model notes and key assumptions.
     model_notes = pd.DataFrame({
 
         "topic": [
@@ -1127,14 +1130,17 @@ def create_excel_output(
 
             (
                 "Exposures are converted into the selected portfolio base currency "
-                "using current FX rates when available. The stored snapshot is used "
-                "as fallback. FX risk itself is not jointly simulated with credit risk."
+                "using automatically retrieved FX rates. When a specific market data "
+                "date is selected, the latest available observation on or before that "
+                "date is used. The frozen market data snapshot is used only as fallback. "
+                "FX risk itself is not jointly simulated with credit risk."
             ),
 
             (
-                "Risk-free rates are retrieved automatically by currency. Stored "
-                "flat policy-rate proxies are fallback inputs only and are not "
-                "calibrated market yield curves."
+                "Risk-free rates are retrieved automatically by currency. When a "
+                "specific market data date is selected, the latest available observation "
+                "on or before that date is used. Stored flat policy-rate proxies are "
+                "fallback inputs only and are not calibrated market yield curves."
             ),
 
             (
@@ -1167,11 +1173,15 @@ def create_excel_output(
         ],
     })
 
+    # Scenario-level simulated losses.
     scenario_losses = pd.DataFrame({
 
         "scenario": range(
             1,
-            len(portfolio_losses) + 1,
+            len(
+                portfolio_losses
+            )
+            + 1,
         ),
 
         "portfolio_loss":
@@ -1179,7 +1189,7 @@ def create_excel_output(
     })
 
     with pd.ExcelWriter(
-        output_excel,
+        OUTPUT_EXCEL,
         engine="openpyxl",
     ) as writer:
 
@@ -1207,9 +1217,13 @@ def create_excel_output(
             index=False,
         )
 
+        # Frozen fallback market data only.
+        #
+        # The as_of_date in this sheet refers to the fallback
+        # snapshot and is not the requested market_data_date.
         market_data.to_excel(
             writer,
-            sheet_name="market_data",
+            sheet_name="fallback_market_data",
             index=False,
         )
 
@@ -1231,46 +1245,30 @@ def create_excel_output(
             index=False,
         )
 
-    format_excel_output(
-        output_excel,
-        output_paths,
-    )
+    format_excel_output()
 
 
-# ---------------------------------------------------------
-# Cleanup
-# ---------------------------------------------------------
+# Remove temporary plot files when separate plot output is disabled.
+def remove_plot_files():
 
-# Remove temporary PNG files if separate plot output is disabled.
-def remove_plot_files(output_paths):
-
-    plot_keys = [
-        "loss_distribution",
-        "tail_distribution",
-        "exposure",
-        "risk_contribution",
-        "pd",
-    ]
-
-    for key in plot_keys:
-
-        plot_file = output_paths[
-            key
-        ]
+    for plot_file in PLOT_FILES:
 
         if plot_file.exists():
+
             plot_file.unlink()
 
 
-# ---------------------------------------------------------
-# Main orchestration
-# ---------------------------------------------------------
-
 def main():
 
-    # Run complete model once.
-    results = run_credit_portfolio_model(
-        FILE_PATH
+    OUTPUT_DIR.mkdir(
+        exist_ok=True
+    )
+
+    # Run the complete model once.
+    results = (
+        run_credit_portfolio_model(
+            FILE_PATH
+        )
     )
 
     portfolio = results[
@@ -1285,9 +1283,11 @@ def main():
         "factor_proxies"
     ]
 
-    rating_migration_matrix = results[
-        "rating_migration_matrix"
-    ]
+    rating_migration_matrix = (
+        results[
+            "rating_migration_matrix"
+        ]
+    )
 
     market_data = results[
         "market_data"
@@ -1301,14 +1301,7 @@ def main():
         "summary"
     ]
 
-    output_folder = get_output_folder(
-        settings
-    )
-
-    output_paths = get_output_paths(
-        output_folder
-    )
-
+    # Read output choices from the central steering workbook.
     create_excel = get_output_flag(
         settings,
         "create_excel_output",
@@ -1319,18 +1312,15 @@ def main():
         "create_pdf_output",
     )
 
-    create_plot_files = get_output_flag(
-        settings,
-        "create_plot_files",
+    create_plot_files = (
+        get_output_flag(
+            settings,
+            "create_plot_files",
+        )
     )
 
     print(
-        f"\nOutput folder: "
-        f"{output_folder}"
-    )
-
-    print(
-        f"Create Excel output: "
+        f"\nCreate Excel output: "
         f"{create_excel}"
     )
 
@@ -1344,6 +1334,7 @@ def main():
         f"{create_plot_files}"
     )
 
+    # Plots are required internally for Excel and PDF output.
     plots_required = (
         create_excel
         or create_pdf
@@ -1356,9 +1347,9 @@ def main():
             portfolio_losses,
             portfolio,
             summary,
-            output_paths,
         )
 
+    # Detailed Excel output.
     if create_excel:
 
         create_excel_output(
@@ -1369,58 +1360,47 @@ def main():
             market_data,
             portfolio_losses,
             summary,
-            output_paths[
-                "excel"
-            ],
-            output_paths,
         )
 
         print(
             f"\nExcel output created: "
-            f"{output_paths['excel']}"
+            f"{OUTPUT_EXCEL}"
         )
 
+    # Compact PDF report.
     if create_pdf:
 
         create_credit_portfolio_report(
             results=results,
-            output_pdf=output_paths[
-                "pdf"
-            ],
-            loss_distribution_plot=output_paths[
-                "loss_distribution"
-            ],
-            tail_distribution_plot=output_paths[
-                "tail_distribution"
-            ],
+            output_pdf=OUTPUT_PDF,
+            loss_distribution_plot=(
+                LOSS_DISTRIBUTION_PLOT
+            ),
+            tail_distribution_plot=(
+                TAIL_DISTRIBUTION_PLOT
+            ),
         )
 
         print(
             f"PDF output created: "
-            f"{output_paths['pdf']}"
+            f"{OUTPUT_PDF}"
         )
 
+    # Keep PNG files only when explicitly requested.
     if create_plot_files:
 
-        for key in [
-            "loss_distribution",
-            "tail_distribution",
-            "exposure",
-            "risk_contribution",
-            "pd",
-        ]:
+        for plot_file in PLOT_FILES:
 
             print(
                 f"Plot created: "
-                f"{output_paths[key]}"
+                f"{plot_file}"
             )
 
     else:
 
-        remove_plot_files(
-            output_paths
-        )
+        remove_plot_files()
 
 
 if __name__ == "__main__":
+
     main()
