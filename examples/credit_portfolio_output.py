@@ -21,51 +21,107 @@ from credit_portfolio_report import (
 
 FILE_PATH = "data/credit_risk_input.xlsx"
 
-OUTPUT_DIR = Path("outputs")
 
-OUTPUT_EXCEL = (
-    OUTPUT_DIR
-    / "credit_portfolio_results.xlsx"
+# ---------------------------------------------------------
+# Output paths
+# ---------------------------------------------------------
+
+# Configure all output paths from the steering workbook.
+def configure_output_paths(
+    output_folder,
+):
+
+    global OUTPUT_DIR
+    global OUTPUT_EXCEL
+    global OUTPUT_PDF
+    global LOSS_DISTRIBUTION_PLOT
+    global TAIL_DISTRIBUTION_PLOT
+    global EXPOSURE_PLOT
+    global RISK_CONTRIBUTION_PLOT
+    global PD_PLOT
+    global PLOT_FILES
+
+    # Use the standard output folder if the setting is
+    # missing, empty, or stored as NaN in Excel.
+    if (
+        output_folder is None
+        or pd.isna(
+            output_folder
+        )
+    ):
+        output_folder = (
+            "outputs"
+        )
+
+    output_folder = (
+        str(
+            output_folder
+        )
+        .strip()
+    )
+
+    if not output_folder:
+        output_folder = (
+            "outputs"
+        )
+
+    OUTPUT_DIR = Path(
+        output_folder
+    )
+
+    OUTPUT_EXCEL = (
+        OUTPUT_DIR
+        / "credit_portfolio_results.xlsx"
+    )
+
+    OUTPUT_PDF = (
+        OUTPUT_DIR
+        / "credit_portfolio_report.pdf"
+    )
+
+    LOSS_DISTRIBUTION_PLOT = (
+        OUTPUT_DIR
+        / "credit_loss_distribution.png"
+    )
+
+    TAIL_DISTRIBUTION_PLOT = (
+        OUTPUT_DIR
+        / "credit_loss_distribution_tail.png"
+    )
+
+    EXPOSURE_PLOT = (
+        OUTPUT_DIR
+        / "credit_exposure_concentration.png"
+    )
+
+    RISK_CONTRIBUTION_PLOT = (
+        OUTPUT_DIR
+        / "credit_risk_contributions.png"
+    )
+
+    PD_PLOT = (
+        OUTPUT_DIR
+        / "credit_pd_overview.png"
+    )
+
+    PLOT_FILES = [
+        LOSS_DISTRIBUTION_PLOT,
+        TAIL_DISTRIBUTION_PLOT,
+        EXPOSURE_PLOT,
+        RISK_CONTRIBUTION_PLOT,
+        PD_PLOT,
+    ]
+
+
+# Default paths before the steering workbook is read.
+configure_output_paths(
+    "outputs"
 )
 
-OUTPUT_PDF = (
-    OUTPUT_DIR
-    / "credit_portfolio_report.pdf"
-)
 
-LOSS_DISTRIBUTION_PLOT = (
-    OUTPUT_DIR
-    / "credit_loss_distribution.png"
-)
-
-TAIL_DISTRIBUTION_PLOT = (
-    OUTPUT_DIR
-    / "credit_loss_distribution_tail.png"
-)
-
-EXPOSURE_PLOT = (
-    OUTPUT_DIR
-    / "credit_exposure_concentration.png"
-)
-
-RISK_CONTRIBUTION_PLOT = (
-    OUTPUT_DIR
-    / "credit_risk_contributions.png"
-)
-
-PD_PLOT = (
-    OUTPUT_DIR
-    / "credit_pd_overview.png"
-)
-
-PLOT_FILES = [
-    LOSS_DISTRIBUTION_PLOT,
-    TAIL_DISTRIBUTION_PLOT,
-    EXPOSURE_PLOT,
-    RISK_CONTRIBUTION_PLOT,
-    PD_PLOT,
-]
-
+# ---------------------------------------------------------
+# Output setting helpers
+# ---------------------------------------------------------
 
 # Read a boolean output setting from the central steering file.
 def get_output_flag(
@@ -124,6 +180,10 @@ def get_output_flag(
         f"must be TRUE or FALSE."
     )
 
+
+# ---------------------------------------------------------
+# Plots
+# ---------------------------------------------------------
 
 # Plot the complete simulated portfolio loss distribution.
 def create_loss_distribution_plot(
@@ -635,6 +695,10 @@ def create_plots(
     )
 
 
+# ---------------------------------------------------------
+# Excel formatting
+# ---------------------------------------------------------
+
 # Format worksheet headers.
 def format_sheet_headers(
     sheet,
@@ -931,6 +995,10 @@ def format_excel_output():
         OUTPUT_EXCEL
     )
 
+
+# ---------------------------------------------------------
+# Excel output
+# ---------------------------------------------------------
 
 # Create the detailed Excel model output.
 def create_excel_output(
@@ -1248,6 +1316,10 @@ def create_excel_output(
     format_excel_output()
 
 
+# ---------------------------------------------------------
+# Plot cleanup
+# ---------------------------------------------------------
+
 # Remove temporary plot files when separate plot output is disabled.
 def remove_plot_files():
 
@@ -1258,11 +1330,11 @@ def remove_plot_files():
             plot_file.unlink()
 
 
-def main():
+# ---------------------------------------------------------
+# Main
+# ---------------------------------------------------------
 
-    OUTPUT_DIR.mkdir(
-        exist_ok=True
-    )
+def main():
 
     # Run the complete model once.
     results = (
@@ -1278,6 +1350,22 @@ def main():
     settings = results[
         "settings"
     ]
+
+    # Configure the output directory from the
+    # central steering workbook.
+    configure_output_paths(
+        settings.get(
+            "output_folder",
+            "outputs",
+        )
+    )
+
+    # Create the complete directory tree if needed.
+    # parents=True is required for nested validation folders.
+    OUTPUT_DIR.mkdir(
+        parents=True,
+        exist_ok=True,
+    )
 
     factor_proxies = results[
         "factor_proxies"
@@ -1317,6 +1405,11 @@ def main():
             settings,
             "create_plot_files",
         )
+    )
+
+    print(
+        f"\nOutput folder: "
+        f"{OUTPUT_DIR}"
     )
 
     print(
