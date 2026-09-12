@@ -13,5 +13,6 @@ anaconda_projects/
 
 *.egg-info/
 
-data/
+data/*
+!data/credit_risk_input.xlsx
 outputs/

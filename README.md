@@ -92,6 +92,16 @@ The difference between default expected loss and the complete simulated loss dis
 
 ---
 
+## Technical Report
+
+A detailed technical report accompanies the credit portfolio model:
+
+**[Credit Portfolio Risk Analytics](docs/Credit_Portfolio_Risk_Analytics.pdf)**
+
+The report documents the methodology, implementation architecture, market data treatment, structural Merton calibration, rating migration, systematic factor modeling, copula dependence, portfolio risk measures, model validation, sensitivity analysis, and model limitations.
+
+---
+
 ## Repository Structure
 
 ```text
@@ -109,3 +119,103 @@ quant-finance-library/
 ├── outputs/
 ├── pyproject.toml
 └── README.md
+```
+
+- `quant_finance/` contains reusable quantitative model and market-data code.
+- `examples/` contains executable demonstrations and portfolio workflows.
+- `notebooks/` contains exploratory and explanatory analyses.
+- `tests/` contains the automated `pytest` test suite.
+- `data/` contains local steering and model input files.
+- `docs/` contains the technical project documentation.
+- `outputs/` contains generated model results, reports, plots, and validation outputs.
+
+---
+
+## Installation
+
+Clone the repository and install the project from the repository root.
+
+For the complete project environment, including testing and notebook support:
+
+```bash
+pip install -e ".[dev,notebooks]"
+```
+
+The required dependencies and optional development and notebook dependencies are defined in `pyproject.toml`.
+
+Python 3.10 or later is required.
+
+---
+
+## Running the Project
+
+Run the automated test suite:
+
+```bash
+pytest -q
+```
+
+Run the credit portfolio model:
+
+```bash
+python examples/credit_portfolio_output.py
+```
+
+Run the credit portfolio validation framework:
+
+```bash
+python examples/credit_portfolio_validation.py
+```
+
+Additional option-pricing, volatility, Monte Carlo, binomial-tree, Merton-model, market-data, and hedging examples are available in the `examples/` directory.
+
+Exploratory analyses, including volatility smile and surface analysis and the credit portfolio model notebook, are available in the `notebooks/` directory.
+
+---
+
+## Testing
+
+The project contains an automated `pytest` test suite covering:
+
+- Black–Scholes pricing
+- Greeks
+- implied volatility
+- Monte Carlo pricing
+- binomial-tree pricing
+- delta hedging
+- bond valuation
+- Merton structural credit risk
+- Merton calibration
+- rating and migration logic
+- systematic factor modeling
+- market data handling
+- dependence modeling
+- portfolio simulation
+- portfolio risk analytics
+- model inputs and validation logic
+
+Current project status:
+
+**213 tests passed.**
+
+---
+
+## Model Scope and Limitations
+
+The project is a quantitative modeling framework rather than a production credit risk system.
+
+Important simplifications include synthetic rating transition and spread assumptions, deterministic LGD, simplified structural default modeling, fixed exposures, proxy-based factor calibration, simplified interest-rate treatment, and limited historical backtesting.
+
+These assumptions are made explicit in the technical report and are deliberately included in the model-risk and validation discussion.
+
+---
+
+## Motivation and Further Development
+
+This project was developed as a hands-on quantitative finance learning project, with the aim of connecting financial theory, numerical methods, software implementation, testing, and model validation within a single codebase.
+
+A particular area of interest is dependence modeling, especially correlations, copulas, and the behavior of portfolio risk under common systematic shocks. This motivated the extension from individual structural credit models toward a portfolio framework combining rating migration, systematic factors, and Student t-copula tail dependence.
+
+Potential future extensions include empirical rating transition and credit spread data, stochastic LGD, richer structural credit models, improved term-structure modeling, empirical dependence calibration, alternative copula structures, stress testing, and historical backtesting.
+
+The aim is to keep the models understandable, testable, and quantitatively transparent rather than adding complexity for its own sake.
