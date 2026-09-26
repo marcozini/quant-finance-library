@@ -133,9 +133,16 @@ quant-finance-library/
 
 ## Installation
 
-Clone the repository and install the project from the repository root.
+Python 3.10 or later is required.
 
-For the complete project environment, including testing and notebook support:
+Clone the repository and move into the project directory:
+
+```bash
+git clone https://github.com/marcozini/quant-finance-library.git
+cd quant-finance-library
+```
+
+Install the project together with the development, testing, and notebook dependencies:
 
 ```bash
 pip install -e ".[dev,notebooks]"
@@ -143,7 +150,7 @@ pip install -e ".[dev,notebooks]"
 
 The required dependencies and optional development and notebook dependencies are defined in `pyproject.toml`.
 
-Python 3.10 or later is required.
+The editable installation (`-e`) allows changes to the source code to be used immediately without reinstalling the package.
 
 ---
 
