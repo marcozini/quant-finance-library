@@ -159,7 +159,7 @@ The editable installation (`-e`) allows changes to the source code to be used im
 Run the automated test suite:
 
 ```bash
-pytest -q
+python -m pytest -q
 ```
 
 Run the credit portfolio model:
@@ -173,6 +173,8 @@ Run the credit portfolio validation framework:
 ```bash
 python examples/credit_portfolio_validation.py
 ```
+
+On Windows, if `python` is not recognized, use `py` instead.
 
 Additional option-pricing, volatility, Monte Carlo, binomial-tree, Merton-model, market-data, and hedging examples are available in the `examples/` directory.
 
