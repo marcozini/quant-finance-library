@@ -168,12 +168,6 @@ Run the credit portfolio model:
 python examples/credit_portfolio_output.py
 ```
 
-Run the credit portfolio validation framework:
-
-```bash
-python examples/credit_portfolio_validation.py
-```
-
 On Windows, if `python` is not recognized, use `py` instead.
 
 Additional option-pricing, volatility, Monte Carlo, binomial-tree, Merton-model, market-data, and hedging examples are available in the `examples/` directory.
